@@ -27,6 +27,7 @@ export interface Card {
   whereBought: string;
   psaGrade?: number;
   notes?: string;
+  imageUrl?: string;
 }
 
 export const CARD_COLORS: CardColor[] = ['Red', 'Green', 'Blue', 'Purple', 'Black', 'Yellow'];

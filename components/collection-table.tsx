@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { ColorBadge } from './color-badge';
-import { MoreHorizontal, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ImageIcon } from 'lucide-react';
 import type { Card } from '@/lib/types';
 import { RARITY_LABELS } from '@/lib/types';
 
@@ -131,6 +131,7 @@ export function CollectionTable({ cards, onEdit, onDelete }: CollectionTableProp
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent border-border">
+              <TableHead className="w-[60px]">Image</TableHead>
               <TableHead className="w-[100px]">
                 <SortButton column="cardNumber" label="Card #" />
               </TableHead>
@@ -175,6 +176,19 @@ export function CollectionTable({ cards, onEdit, onDelete }: CollectionTableProp
           <TableBody>
             {sortedCards.map((card) => (
               <TableRow key={card.id} className="border-border hover:bg-secondary/30">
+                <TableCell>
+                  {card.imageUrl ? (
+                    <img
+                      src={card.imageUrl}
+                      alt={card.cardName}
+                      className="h-12 w-auto rounded border border-border object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-9 items-center justify-center rounded border border-dashed border-border bg-muted/30">
+                      <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell className="font-mono text-sm text-primary">
                   {card.cardNumber}
                 </TableCell>

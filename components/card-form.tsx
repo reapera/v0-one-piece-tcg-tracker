@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Camera, ImageIcon, X } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -64,6 +65,7 @@ const defaultFormData = {
   whereBought: '',
   psaGrade: undefined as number | undefined,
   notes: '',
+  imageUrl: '' as string,
 };
 
 export function CardForm({
@@ -73,6 +75,9 @@ export function CardForm({
   editCard,
 }: CardFormProps) {
   const [formData, setFormData] = useState(defaultFormData);
+
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (editCard) {
@@ -92,11 +97,29 @@ export function CardForm({
         whereBought: editCard.whereBought,
         psaGrade: editCard.psaGrade,
         notes: editCard.notes || '',
+        imageUrl: editCard.imageUrl || '',
       });
     } else {
       setFormData(defaultFormData);
     }
   }, [editCard, open]);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData((prev) => ({ ...prev, imageUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setFormData((prev) => ({ ...prev, imageUrl: '' }));
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
+    if (galleryInputRef.current) galleryInputRef.current.value = '';
+  };
 
   const handleColorToggle = (color: CardColor) => {
     setFormData((prev) => ({
@@ -113,6 +136,7 @@ export function CardForm({
       ...formData,
       psaGrade: formData.psaGrade || undefined,
       notes: formData.notes || undefined,
+      imageUrl: formData.imageUrl || undefined,
     });
     setFormData(defaultFormData);
     onOpenChange(false);
@@ -428,6 +452,73 @@ export function CardForm({
               }
               rows={3}
             />
+          </Field>
+
+          {/* Card Image */}
+          <Field>
+            <FieldLabel>Card Image</FieldLabel>
+            <div className="space-y-3">
+              {formData.imageUrl ? (
+                <div className="relative inline-block">
+                  <img
+                    src={formData.imageUrl}
+                    alt="Card preview"
+                    className="h-48 w-auto rounded-lg border border-border object-contain"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon-sm"
+                    className="absolute -right-2 -top-2 h-6 w-6 rounded-full"
+                    onClick={removeImage}
+                  >
+                    <X className="h-3 w-3" />
+                    <span className="sr-only">Remove image</span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-3">
+                  {/* Camera Input */}
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    id="camera-input"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="flex-1"
+                  >
+                    <Camera className="mr-2 h-4 w-4" />
+                    Take Photo
+                  </Button>
+
+                  {/* Gallery Input */}
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    id="gallery-input"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="flex-1"
+                  >
+                    <ImageIcon className="mr-2 h-4 w-4" />
+                    Choose from Gallery
+                  </Button>
+                </div>
+              )}
+            </div>
           </Field>
 
           <DialogFooter>
