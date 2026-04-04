@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -124,6 +125,11 @@ export function CardForm({
           <DialogTitle className="text-primary">
             {editCard ? 'Edit Card' : 'Add New Card'}
           </DialogTitle>
+          <DialogDescription>
+            {editCard
+              ? 'Update the details of your card below.'
+              : 'Fill in the details to add a new card to your collection.'}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
