@@ -64,7 +64,7 @@ export function DashboardStats({ cards }: DashboardStatsProps) {
             <div>
               <p className="text-sm text-muted-foreground">Collection Value</p>
               <p className="text-2xl font-bold text-foreground">
-                ${totalValue.toFixed(2)}
+                Rp{totalValue.toLocaleString('id-ID')}
               </p>
             </div>
           </div>
@@ -78,7 +78,7 @@ export function DashboardStats({ cards }: DashboardStatsProps) {
             <div>
               <p className="text-sm text-muted-foreground">Avg. Card Value</p>
               <p className="text-2xl font-bold text-foreground">
-                ${totalCards > 0 ? (totalValue / totalCards).toFixed(2) : '0.00'}
+                Rp{totalCards > 0 ? Math.round(totalValue / totalCards).toLocaleString('id-ID') : '0'}
               </p>
             </div>
           </div>
@@ -106,7 +106,7 @@ export function DashboardStats({ cards }: DashboardStatsProps) {
                     {rarityBreakdown[rarity].count}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    (${rarityBreakdown[rarity].value.toFixed(2)})
+                    (Rp{rarityBreakdown[rarity].value.toLocaleString('id-ID')})
                   </span>
                 </div>
               ))}

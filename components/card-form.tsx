@@ -373,7 +373,7 @@ export function CardForm({
             </Field>
 
             <Field>
-              <FieldLabel>Buy Price ($) *</FieldLabel>
+              <FieldLabel>Buy Price (Rp) *</FieldLabel>
               <Input
                 type="number"
                 min={0}

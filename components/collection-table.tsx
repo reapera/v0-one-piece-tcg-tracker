@@ -226,10 +226,10 @@ export function CollectionTable({ cards, onEdit, onDelete }: CollectionTableProp
                   {card.condition}
                 </TableCell>
                 <TableCell className="text-right font-mono text-sm">
-                  ${card.buyPrice.toFixed(2)}
+                  Rp{card.buyPrice.toLocaleString('id-ID')}
                 </TableCell>
                 <TableCell className="text-right font-mono text-sm text-primary">
-                  ${(card.buyPrice * card.quantity).toFixed(2)}
+                  Rp{(card.buyPrice * card.quantity).toLocaleString('id-ID')}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {new Date(card.datePurchased).toLocaleDateString()}
