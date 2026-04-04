@@ -14,7 +14,6 @@ export interface Card {
   id: string;
   cardNumber: string;
   cardName: string;
-  set: string;
   category: CardCategory;
   colors: CardColor[];
   rarity: CardRarity;
@@ -53,28 +52,4 @@ export const RARITY_LABELS: Record<CardRarity, string> = {
   'Promo': 'Promo',
 };
 
-export const POPULAR_SETS = [
-  'OP-01 Romance Dawn',
-  'OP-02 Paramount War',
-  'OP-03 Pillars of Strength',
-  'OP-04 Kingdoms of Intrigue',
-  'OP-05 Awakening of the New Era',
-  'OP-06 Wings of the Captain',
-  'OP-07 500 Years in the Future',
-  'OP-08 Two Legends',
-  'ST-01 Straw Hat Crew',
-  'ST-02 Worst Generation',
-  'ST-03 The Seven Warlords',
-  'ST-04 Animal Kingdom Pirates',
-  'ST-05 Film Edition',
-  'ST-06 Absolute Justice',
-  'ST-07 Big Mom Pirates',
-  'ST-08 Monkey D. Luffy',
-  'ST-09 Yamato',
-  'ST-10 The Three Captains',
-  'ST-11 Uta',
-  'ST-12 Zoro and Sanji',
-  'ST-13 The Three Brothers',
-  'EB-01 Memorial Collection',
-  'PRB-01 Premium Booster',
-];
+

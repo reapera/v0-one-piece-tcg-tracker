@@ -16,7 +16,6 @@ import {
   CARD_CATEGORIES,
   CARD_LANGUAGES,
   CARD_CONDITIONS,
-  POPULAR_SETS,
   RARITY_LABELS,
   type CardColor,
   type CardRarity,
@@ -27,7 +26,6 @@ import {
 
 export interface Filters {
   search: string;
-  set: string;
   color: CardColor | '';
   rarity: CardRarity | '';
   category: CardCategory | '';
@@ -46,7 +44,6 @@ export function CollectionFilters({
 }: CollectionFiltersProps) {
   const hasActiveFilters =
     filters.search ||
-    filters.set ||
     filters.color ||
     filters.rarity ||
     filters.category ||
@@ -56,7 +53,6 @@ export function CollectionFilters({
   const clearFilters = () => {
     onFiltersChange({
       search: '',
-      set: '',
       color: '',
       rarity: '',
       category: '',
@@ -81,26 +77,7 @@ export function CollectionFilters({
       </div>
 
       {/* Filter Dropdowns */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
-        <Select
-          value={filters.set}
-          onValueChange={(value) =>
-            onFiltersChange({ ...filters, set: value === 'all' ? '' : value })
-          }
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Set" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Sets</SelectItem>
-            {POPULAR_SETS.map((set) => (
-              <SelectItem key={set} value={set}>
-                {set}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <Select
           value={filters.color || 'all'}
           onValueChange={(value) =>

@@ -16,7 +16,6 @@ export default function Home() {
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [filters, setFilters] = useState<Filters>({
     search: '',
-    set: '',
     color: '',
     rarity: '',
     category: '',
@@ -34,9 +33,6 @@ export default function Home() {
           card.cardNumber.toLowerCase().includes(searchLower);
         if (!matchesSearch) return false;
       }
-
-      // Set filter
-      if (filters.set && card.set !== filters.set) return false;
 
       // Color filter
       if (filters.color && !card.colors.includes(filters.color)) return false;

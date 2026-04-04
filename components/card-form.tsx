@@ -38,7 +38,6 @@ import {
   CARD_VARIANTS,
   CARD_LANGUAGES,
   CARD_CONDITIONS,
-  POPULAR_SETS,
   RARITY_LABELS,
 } from '@/lib/types';
 
@@ -52,7 +51,6 @@ interface CardFormProps {
 const defaultFormData = {
   cardNumber: '',
   cardName: '',
-  set: '',
   category: 'Character' as CardCategory,
   colors: [] as CardColor[],
   rarity: 'C' as CardRarity,
@@ -84,7 +82,6 @@ export function CardForm({
       setFormData({
         cardNumber: editCard.cardNumber,
         cardName: editCard.cardName,
-        set: editCard.set,
         category: editCard.category,
         colors: editCard.colors,
         rarity: editCard.rarity,
@@ -184,29 +181,8 @@ export function CardForm({
             </Field>
           </div>
 
-          {/* Set and Category */}
+          {/* Category */}
           <div className="grid grid-cols-2 gap-4">
-            <Field>
-              <FieldLabel>Set *</FieldLabel>
-              <Select
-                value={formData.set}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, set: value }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select set" />
-                </SelectTrigger>
-                <SelectContent>
-                  {POPULAR_SETS.map((set) => (
-                    <SelectItem key={set} value={set}>
-                      {set}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-
             <Field>
               <FieldLabel>Category *</FieldLabel>
               <Select

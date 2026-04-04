@@ -139,9 +139,6 @@ export function CollectionTable({ cards, onEdit, onDelete }: CollectionTableProp
                 <SortButton column="cardName" label="Name" />
               </TableHead>
               <TableHead>
-                <SortButton column="set" label="Set" />
-              </TableHead>
-              <TableHead>
                 <SortButton column="category" label="Category" />
               </TableHead>
               <TableHead>Color</TableHead>
@@ -193,9 +190,6 @@ export function CollectionTable({ cards, onEdit, onDelete }: CollectionTableProp
                   {card.cardNumber}
                 </TableCell>
                 <TableCell className="font-medium">{card.cardName}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {card.set}
-                </TableCell>
                 <TableCell>
                   <Badge variant="outline" className="text-xs">
                     {card.category}
