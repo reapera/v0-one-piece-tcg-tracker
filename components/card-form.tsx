@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
+import { compressImage } from '@/lib/compress-image';
 import {
   Dialog,
   DialogContent,
@@ -73,6 +75,7 @@ export function CardForm({
   editCard,
 }: CardFormProps) {
   const [formData, setFormData] = useState(defaultFormData);
+  const [isUploading, setIsUploading] = useState(false);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -101,14 +104,32 @@ export function CardForm({
     }
   }, [editCard, open]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData((prev) => ({ ...prev, imageUrl: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const compressed = await compressImage(file, 200 * 1024);
+      const ext = 'jpg';
+      const path = `${crypto.randomUUID()}.${ext}`;
+
+      const { error } = await supabase.storage
+        .from('card-images')
+        .upload(path, compressed, { contentType: 'image/jpeg' });
+
+      if (error) {
+        console.error('Failed to upload image:', error.message);
+        return;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('card-images')
+        .getPublicUrl(path);
+
+      setFormData((prev) => ({ ...prev, imageUrl: publicUrl }));
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -469,9 +490,10 @@ export function CardForm({
                     variant="outline"
                     onClick={() => cameraInputRef.current?.click()}
                     className="flex-1"
+                    disabled={isUploading}
                   >
                     <Camera className="mr-2 h-4 w-4" />
-                    Take Photo
+                    {isUploading ? 'Uploading...' : 'Take Photo'}
                   </Button>
 
                   {/* Gallery Input */}
@@ -488,9 +510,10 @@ export function CardForm({
                     variant="outline"
                     onClick={() => galleryInputRef.current?.click()}
                     className="flex-1"
+                    disabled={isUploading}
                   >
                     <ImageIcon className="mr-2 h-4 w-4" />
-                    Choose from Gallery
+                    {isUploading ? 'Uploading...' : 'Choose from Gallery'}
                   </Button>
                 </div>
               )}
@@ -505,7 +528,7 @@ export function CardForm({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={formData.colors.length === 0}>
+            <Button type="submit" disabled={formData.colors.length === 0 || isUploading}>
               {editCard ? 'Update Card' : 'Add Card'}
             </Button>
           </DialogFooter>

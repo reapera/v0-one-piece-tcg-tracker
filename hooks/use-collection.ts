@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, rowToCard, cardToRow, type CardRow } from '@/lib/supabase';
+import { getStoragePath } from '@/lib/compress-image';
 import type { Card } from '@/lib/types';
 
 export function useCollection() {
@@ -81,15 +82,24 @@ export function useCollection() {
   }, []);
 
   const deleteCard = useCallback(async (id: string) => {
-    const { error } = await supabase.from('cards').delete().eq('id', id);
+    const card = cards.find((c) => c.id === id);
 
+    const { error } = await supabase.from('cards').delete().eq('id', id);
     if (error) {
       console.error('Failed to delete card:', error.message);
       return;
     }
 
+    // Clean up image from Storage if present
+    if (card?.imageUrl) {
+      const path = getStoragePath(card.imageUrl, 'card-images');
+      if (path) {
+        await supabase.storage.from('card-images').remove([path]);
+      }
+    }
+
     setCards((prev) => prev.filter((c) => c.id !== id));
-  }, []);
+  }, [cards]);
 
   const getCard = useCallback(
     (id: string) => cards.find((c) => c.id === id),
