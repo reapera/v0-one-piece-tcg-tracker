@@ -2,95 +2,141 @@
 
 import { useState, useMemo } from 'react';
 import { useCollection } from '@/hooks/use-collection';
-import { DashboardStats } from '@/components/dashboard-stats';
-import { CollectionFilters, type Filters } from '@/components/collection-filters';
-import { CollectionTable } from '@/components/collection-table';
 import { CardForm } from '@/components/card-form';
 import { Button } from '@/components/ui/button';
-import { Plus, Anchor, Skull } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Plus, Anchor, LayoutGrid, Table2, Search, ImageIcon } from 'lucide-react';
+import Link from 'next/link';
+import { CardDetail } from '@/components/card-detail';
 import type { Card } from '@/lib/types';
+import { CARD_RARITIES, CARD_CONDITIONS, RARITY_LABELS } from '@/lib/types';
+
+const CONDITION_SHORT: Record<string, string> = {
+  'Near Mint': 'NM',
+  'Lightly Played': 'LP',
+  'Moderately Played': 'MP',
+  'Heavily Played': 'HP',
+  'Damaged': 'D',
+};
+
+const CONDITION_COLOR: Record<string, string> = {
+  'Near Mint': 'bg-green-500/20 text-green-400 border-green-500/30',
+  'Lightly Played': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  'Moderately Played': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  'Heavily Played': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  'Damaged': 'bg-red-500/20 text-red-400 border-red-500/30',
+};
+
+function CardTile({ card, onClick }: { card: Card; onClick: () => void }) {
+  return (
+    <div
+      onClick={onClick}
+      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
+    >
+      {/* Image */}
+      <div className="relative aspect-[2/3] overflow-hidden bg-muted/30">
+        {card.imageUrl ? (
+          <img
+            src={card.imageUrl}
+            alt={card.cardName}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <ImageIcon className="h-10 w-10 text-muted-foreground/40" />
+          </div>
+        )}
+
+        {/* Game badge */}
+        <div className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+          One Piece
+        </div>
+
+        {/* Rarity badge */}
+        <div className="absolute right-2 top-2 rounded-md bg-primary/80 px-1.5 py-0.5 text-xs font-bold text-primary-foreground backdrop-blur-sm">
+          {card.rarity}
+        </div>
+      </div>
+
+      {/* Details */}
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <div className="min-w-0">
+          <p className="truncate font-semibold leading-tight text-foreground">
+            {card.cardName}
+          </p>
+          <p className="font-mono text-xs text-primary">{card.cardNumber}</p>
+        </div>
+
+        <div className="mt-auto flex items-center justify-between gap-2">
+          <span
+            className={`inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium ${CONDITION_COLOR[card.condition]}`}
+          >
+            {CONDITION_SHORT[card.condition] ?? card.condition}
+          </span>
+          <span className="font-mono text-sm font-semibold text-foreground">
+            Rp{card.buyPrice.toLocaleString('id-ID')}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const { cards, isLoaded, addCard, updateCard, deleteCard } = useCollection();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
-  const [filters, setFilters] = useState<Filters>({
-    search: '',
-    color: '',
-    rarity: '',
-    category: '',
-    language: '',
-    condition: '',
-  });
+  const [selectedCard, setSelectedCard] = useState<Card | null>(null);
+  const [search, setSearch] = useState('');
+  const [condition, setCondition] = useState('all');
+  const [rarity, setRarity] = useState('all');
 
   const filteredCards = useMemo(() => {
     return cards.filter((card) => {
-      // Search filter
-      if (filters.search) {
-        const searchLower = filters.search.toLowerCase();
-        const matchesSearch =
-          card.cardName.toLowerCase().includes(searchLower) ||
-          card.cardNumber.toLowerCase().includes(searchLower);
-        if (!matchesSearch) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (
+          !card.cardName.toLowerCase().includes(q) &&
+          !card.cardNumber.toLowerCase().includes(q)
+        )
+          return false;
       }
-
-      // Color filter
-      if (filters.color && !card.colors.includes(filters.color)) return false;
-
-      // Rarity filter
-      if (filters.rarity && card.rarity !== filters.rarity) return false;
-
-      // Category filter
-      if (filters.category && card.category !== filters.category) return false;
-
-      // Language filter
-      if (filters.language && card.language !== filters.language) return false;
-
-      // Condition filter
-      if (filters.condition && card.condition !== filters.condition) return false;
-
+      if (condition !== 'all' && card.condition !== condition) return false;
+      if (rarity !== 'all' && card.rarity !== rarity) return false;
       return true;
     });
-  }, [cards, filters]);
-
-  const handleAddCard = (cardData: Omit<Card, 'id'>) => {
-    addCard(cardData);
-  };
+  }, [cards, search, condition, rarity]);
 
   const handleEditCard = (card: Card) => {
     setEditingCard(card);
     setIsFormOpen(true);
   };
 
-  const handleUpdateCard = (cardData: Omit<Card, 'id'>) => {
+  const handleFormSubmit = (cardData: Omit<Card, 'id'>) => {
     if (editingCard) {
       updateCard(editingCard.id, cardData);
       setEditingCard(null);
-    }
-  };
-
-  const handleFormSubmit = (cardData: Omit<Card, 'id'>) => {
-    if (editingCard) {
-      handleUpdateCard(cardData);
     } else {
-      handleAddCard(cardData);
+      addCard(cardData);
     }
   };
 
   const handleFormClose = (open: boolean) => {
     setIsFormOpen(open);
-    if (!open) {
-      setEditingCard(null);
-    }
+    if (!open) setEditingCard(null);
   };
 
   if (!isLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Skull className="h-12 w-12 animate-pulse text-primary" />
-          <p className="text-muted-foreground">Loading your collection...</p>
-        </div>
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }
@@ -100,18 +146,27 @@ export default function Home() {
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Anchor className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">
-                My One Piece TCG Collection
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <Anchor className="h-6 w-6 text-primary" />
+              </div>
+              <h1 className="hidden text-xl font-bold text-foreground sm:block">
+                My One Piece TCG
               </h1>
-              <p className="text-xs text-muted-foreground">
-                Track your treasure
-              </p>
             </div>
+            <nav className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="gap-2 bg-secondary text-foreground">
+                <LayoutGrid className="h-4 w-4" />
+                Gallery
+              </Button>
+              <Link href="/cards">
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+                  <Table2 className="h-4 w-4" />
+                  Table
+                </Button>
+              </Link>
+            </nav>
           </div>
           <Button onClick={() => setIsFormOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" />
@@ -120,51 +175,100 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="space-y-8">
-          {/* Dashboard Stats */}
-          <section>
-            <h2 className="sr-only">Collection Statistics</h2>
-            <DashboardStats cards={cards} />
-          </section>
-
-          {/* Filters */}
-          <section>
-            <h2 className="sr-only">Filters</h2>
-            <CollectionFilters filters={filters} onFiltersChange={setFilters} />
-          </section>
-
-          {/* Results Count */}
-          {cards.length > 0 && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Showing{' '}
-                <span className="font-medium text-foreground">
-                  {filteredCards.length}
-                </span>{' '}
-                of{' '}
-                <span className="font-medium text-foreground">
-                  {cards.length}
-                </span>{' '}
-                cards
-              </p>
-            </div>
-          )}
-
-          {/* Collection Table */}
-          <section>
-            <h2 className="sr-only">Card Collection</h2>
-            <CollectionTable
-              cards={filteredCards}
-              onEdit={handleEditCard}
-              onDelete={deleteCard}
+      {/* Main */}
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* Search + Filters */}
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search by card name or number..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
             />
-          </section>
+          </div>
+          <div className="flex gap-2">
+            <Select value={condition} onValueChange={setCondition}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Condition" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Conditions</SelectItem>
+                {CARD_CONDITIONS.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {CONDITION_SHORT[c]} — {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={rarity} onValueChange={setRarity}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Rarity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Rarities</SelectItem>
+                {CARD_RARITIES.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {r} — {RARITY_LABELS[r]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+
+        {/* Results count */}
+        {cards.length > 0 && (
+          <p className="mb-4 text-sm text-muted-foreground">
+            Showing{' '}
+            <span className="font-medium text-foreground">{filteredCards.length}</span>
+            {' '}of{' '}
+            <span className="font-medium text-foreground">{cards.length}</span>
+            {' '}cards
+          </p>
+        )}
+
+        {/* Grid */}
+        {filteredCards.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-24 text-center">
+            <ImageIcon className="mb-4 h-12 w-12 text-muted-foreground/30" />
+            <p className="text-lg font-medium text-foreground">
+              {cards.length === 0 ? 'No cards yet' : 'No cards match your filters'}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {cards.length === 0
+                ? 'Add your first card to start tracking your collection'
+                : 'Try adjusting your search or filters'}
+            </p>
+            {cards.length === 0 && (
+              <Button onClick={() => setIsFormOpen(true)} className="mt-6 gap-2">
+                <Plus className="h-4 w-4" />
+                Add Card
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            {filteredCards.map((card) => (
+              <CardTile
+                key={card.id}
+                card={card}
+                onClick={() => setSelectedCard(card)}
+              />
+            ))}
+          </div>
+        )}
       </main>
 
-      {/* Card Form Modal */}
+      <CardDetail
+        card={selectedCard}
+        open={!!selectedCard}
+        onOpenChange={(open) => { if (!open) setSelectedCard(null); }}
+        onEdit={handleEditCard}
+        onDelete={deleteCard}
+      />
+
       <CardForm
         open={isFormOpen}
         onOpenChange={handleFormClose}

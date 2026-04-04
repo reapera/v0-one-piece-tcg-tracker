@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Camera, ImageIcon, X } from 'lucide-react';
+import { Camera, ImageIcon, X, Link, ClipboardPaste } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -57,7 +57,7 @@ const defaultFormData = {
   colors: [] as CardColor[],
   rarity: 'C' as CardRarity,
   variant: 'Standard' as CardVariant,
-  language: 'EN' as CardLanguage,
+  language: 'JP' as CardLanguage,
   quantity: 1,
   condition: 'Near Mint' as CardCondition,
   buyPrice: 0,
@@ -76,6 +76,8 @@ export function CardForm({
 }: CardFormProps) {
   const [formData, setFormData] = useState(defaultFormData);
   const [isUploading, setIsUploading] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -102,41 +104,76 @@ export function CardForm({
     } else {
       setFormData(defaultFormData);
     }
+    setUrlInput('');
+    setShowUrlInput(false);
   }, [editCard, open]);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const uploadImageFile = async (file: File) => {
     setIsUploading(true);
     try {
       const compressed = await compressImage(file, 200 * 1024);
-      const ext = 'jpg';
-      const path = `${crypto.randomUUID()}.${ext}`;
-
+      const path = `${crypto.randomUUID()}.jpg`;
       const { error } = await supabase.storage
         .from('card-images')
         .upload(path, compressed, { contentType: 'image/jpeg' });
-
-      if (error) {
-        console.error('Failed to upload image:', error.message);
-        return;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('card-images')
-        .getPublicUrl(path);
-
+      if (error) { console.error('Failed to upload image:', error.message); return; }
+      const { data: { publicUrl } } = supabase.storage.from('card-images').getPublicUrl(path);
       setFormData((prev) => ({ ...prev, imageUrl: publicUrl }));
     } finally {
       setIsUploading(false);
     }
   };
 
+  // Listen for Cmd+V / Ctrl+V while the modal is open
+  useEffect(() => {
+    if (!open || formData.imageUrl) return;
+    const handlePaste = (e: ClipboardEvent) => {
+      const item = Array.from(e.clipboardData?.items ?? []).find((i) =>
+        i.type.startsWith('image/'),
+      );
+      if (!item) return;
+      const file = item.getAsFile();
+      if (file) uploadImageFile(file);
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [open, formData.imageUrl]);
+
+  const handleClipboardPaste = async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imageType = item.types.find((t) => t.startsWith('image/'));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          await uploadImageFile(new File([blob], 'clipboard.png', { type: imageType }));
+          break;
+        }
+      }
+    } catch {
+      console.error('Clipboard access denied — try Cmd+V instead.');
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await uploadImageFile(file);
+  };
+
   const removeImage = () => {
     setFormData((prev) => ({ ...prev, imageUrl: '' }));
     if (cameraInputRef.current) cameraInputRef.current.value = '';
     if (galleryInputRef.current) galleryInputRef.current.value = '';
+    setUrlInput('');
+    setShowUrlInput(false);
+  };
+
+  const handleUrlConfirm = () => {
+    const trimmed = urlInput.trim();
+    if (trimmed) {
+      setFormData((prev) => ({ ...prev, imageUrl: trimmed }));
+      setShowUrlInput(false);
+    }
   };
 
   const handleColorToggle = (color: CardColor) => {
@@ -152,6 +189,10 @@ export function CardForm({
     e.preventDefault();
     onSubmit({
       ...formData,
+      cardName: formData.cardName
+        .trim()
+        .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()),
+      cardNumber: formData.cardNumber.trim().toUpperCase(),
       psaGrade: formData.psaGrade || undefined,
       notes: formData.notes || undefined,
       imageUrl: formData.imageUrl || undefined,
@@ -162,7 +203,7 @@ export function CardForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="flex max-h-[100dvh] w-full flex-col overflow-y-auto sm:max-h-[90vh] sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-primary">
             {editCard ? 'Edit Card' : 'Add New Card'}
@@ -176,7 +217,7 @@ export function CardForm({
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel>Card Number *</FieldLabel>
               <Input
@@ -203,7 +244,7 @@ export function CardForm({
           </div>
 
           {/* Category */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel>Category *</FieldLabel>
               <Select
@@ -253,7 +294,7 @@ export function CardForm({
           </Field>
 
           {/* Rarity and Variant */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel>Rarity *</FieldLabel>
               <Select
@@ -301,7 +342,7 @@ export function CardForm({
           </div>
 
           {/* Language and Condition */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel>Language *</FieldLabel>
               <Select
@@ -352,7 +393,7 @@ export function CardForm({
           </div>
 
           {/* Quantity and Price */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Field>
               <FieldLabel>Quantity *</FieldLabel>
               <Input
@@ -407,7 +448,7 @@ export function CardForm({
           </div>
 
           {/* Purchase Info */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel>Date Purchased *</FieldLabel>
               <Input
@@ -474,47 +515,90 @@ export function CardForm({
                   </Button>
                 </div>
               ) : (
-                <div className="flex gap-3">
-                  {/* Camera Input */}
-                  <input
-                    ref={cameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    id="camera-input"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => cameraInputRef.current?.click()}
-                    className="flex-1"
-                    disabled={isUploading}
-                  >
-                    <Camera className="mr-2 h-4 w-4" />
-                    {isUploading ? 'Uploading...' : 'Take Photo'}
-                  </Button>
+                <div className="space-y-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+                    {/* Camera Input */}
+                    <input
+                      ref={cameraInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      id="camera-input"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="flex-1"
+                      disabled={isUploading}
+                    >
+                      <Camera className="mr-2 h-4 w-4" />
+                      {isUploading ? 'Uploading...' : 'Take Photo'}
+                    </Button>
 
-                  {/* Gallery Input */}
-                  <input
-                    ref={galleryInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    id="gallery-input"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => galleryInputRef.current?.click()}
-                    className="flex-1"
-                    disabled={isUploading}
-                  >
-                    <ImageIcon className="mr-2 h-4 w-4" />
-                    {isUploading ? 'Uploading...' : 'Choose from Gallery'}
-                  </Button>
+                    {/* Gallery Input */}
+                    <input
+                      ref={galleryInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      id="gallery-input"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => galleryInputRef.current?.click()}
+                      className="flex-1"
+                      disabled={isUploading}
+                    >
+                      <ImageIcon className="mr-2 h-4 w-4" />
+                      {isUploading ? 'Uploading...' : 'Choose from Gallery'}
+                    </Button>
+
+                    {/* Clipboard paste */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleClipboardPaste}
+                      disabled={isUploading}
+                      className="gap-2 sm:px-3"
+                      title="Paste image (Cmd+V)"
+                    >
+                      <ClipboardPaste className="h-4 w-4" />
+                      <span className="sm:hidden">Paste Image</span>
+                    </Button>
+
+                    {/* URL toggle */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowUrlInput((v) => !v)}
+                      disabled={isUploading}
+                      className="gap-2 sm:px-3"
+                    >
+                      <Link className="h-4 w-4" />
+                      <span className="sm:hidden">Paste URL</span>
+                    </Button>
+                  </div>
+
+                  {/* URL input row */}
+                  {showUrlInput && (
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="https://example.com/card.jpg"
+                        value={urlInput}
+                        onChange={(e) => setUrlInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleUrlConfirm())}
+                        autoFocus
+                      />
+                      <Button type="button" onClick={handleUrlConfirm} disabled={!urlInput.trim()}>
+                        Use
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
