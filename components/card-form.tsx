@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Camera, ImageIcon, X, Link, ClipboardPaste, ScanLine, Loader2 } from 'lucide-react';
+import { Camera, ImageIcon, X, Link, ClipboardPaste, ScanLine, Loader2, ChevronDown } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -81,6 +81,7 @@ export function CardForm({
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [scanImageData, setScanImageData] = useState<{ base64: string; mimeType: string } | null>(null);
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
+  const [showCardDetails, setShowCardDetails] = useState(true);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -112,6 +113,7 @@ export function CardForm({
     setLocalPreview(null);
     setScanImageData(null);
     setScanStatus('idle');
+    setShowCardDetails(true);
   }, [editCard, open]);
 
   const uploadImageFile = async (file: File) => {
@@ -227,6 +229,7 @@ export function CardForm({
           ? { language: data.language as CardLanguage } : {}),
       }));
       setScanStatus('success');
+      setShowCardDetails(false);
     } catch (err) {
       console.error('Scan failed:', err);
       setScanStatus('error');
@@ -380,200 +383,8 @@ export function CardForm({
             )}
           </div>
 
-          {/* Basic Info */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel>Card Number *</FieldLabel>
-              <Input
-                placeholder="e.g., OP01-001"
-                value={formData.cardNumber}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, cardNumber: e.target.value }))
-                }
-                required
-              />
-            </Field>
-
-            <Field>
-              <FieldLabel>Card Name *</FieldLabel>
-              <Input
-                placeholder="e.g., Monkey D. Luffy"
-                value={formData.cardName}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, cardName: e.target.value }))
-                }
-                required
-              />
-            </Field>
-          </div>
-
-          {/* Category */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel>Category *</FieldLabel>
-              <Select
-                value={formData.category}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    category: value as CardCategory,
-                  }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CARD_CATEGORIES.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-
-          {/* Colors Multi-select */}
-          <Field>
-            <FieldLabel>Colors *</FieldLabel>
-            <div className="flex flex-wrap gap-3 rounded-md border border-border bg-input/30 p-3">
-              {CARD_COLORS.map((color) => (
-                <label
-                  key={color}
-                  className="flex cursor-pointer items-center gap-2"
-                >
-                  <Checkbox
-                    checked={formData.colors.includes(color)}
-                    onCheckedChange={() => handleColorToggle(color)}
-                  />
-                  <span
-                    className={`rounded px-2 py-0.5 text-xs font-medium badge-${color.toLowerCase()}`}
-                  >
-                    {color}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </Field>
-
-          {/* Rarity and Variant */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel>Rarity *</FieldLabel>
-              <Select
-                value={formData.rarity}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, rarity: value as CardRarity }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CARD_RARITIES.map((rarity) => (
-                    <SelectItem key={rarity} value={rarity}>
-                      {rarity} - {RARITY_LABELS[rarity]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-
-            <Field>
-              <FieldLabel>Variant *</FieldLabel>
-              <Select
-                value={formData.variant}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    variant: value as CardVariant,
-                  }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CARD_VARIANTS.map((variant) => (
-                    <SelectItem key={variant} value={variant}>
-                      {variant}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-
-          {/* Language and Condition */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel>Language *</FieldLabel>
-              <Select
-                value={formData.language}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    language: value as CardLanguage,
-                  }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CARD_LANGUAGES.map((lang) => (
-                    <SelectItem key={lang} value={lang}>
-                      {lang === 'EN' ? 'English' : 'Japanese'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-
-            <Field>
-              <FieldLabel>Condition *</FieldLabel>
-              <Select
-                value={formData.condition}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    condition: value as CardCondition,
-                  }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CARD_CONDITIONS.map((cond) => (
-                    <SelectItem key={cond} value={cond}>
-                      {cond}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-
-          {/* Quantity and Price */}
+          {/* ── Quick Fill (always visible, always manual) ── */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Field>
-              <FieldLabel>Quantity *</FieldLabel>
-              <Input
-                type="number"
-                min={1}
-                value={formData.quantity}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    quantity: parseInt(e.target.value) || 1,
-                  }))
-                }
-                required
-              />
-            </Field>
-
             <Field>
               <FieldLabel>Buy Price (Rp) *</FieldLabel>
               <Input
@@ -582,15 +393,209 @@ export function CardForm({
                 step={0.01}
                 value={formData.buyPrice}
                 onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    buyPrice: parseFloat(e.target.value) || 0,
-                  }))
+                  setFormData((prev) => ({ ...prev, buyPrice: parseFloat(e.target.value) || 0 }))
                 }
                 required
               />
             </Field>
+            <Field>
+              <FieldLabel>Condition *</FieldLabel>
+              <Select
+                value={formData.condition}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, condition: value as CardCondition }))
+                }
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CARD_CONDITIONS.map((cond) => (
+                    <SelectItem key={cond} value={cond}>{cond}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel>Quantity *</FieldLabel>
+              <Input
+                type="number"
+                min={1}
+                value={formData.quantity}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))
+                }
+                required
+              />
+            </Field>
+          </div>
 
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel>Date Purchased *</FieldLabel>
+              <Input
+                type="date"
+                value={formData.datePurchased}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, datePurchased: e.target.value }))
+                }
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Where Bought</FieldLabel>
+              <Input
+                placeholder="e.g., TCGPlayer, Local Shop"
+                value={formData.whereBought}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, whereBought: e.target.value }))
+                }
+              />
+            </Field>
+          </div>
+
+          {/* ── Card Details (auto-filled, collapsible) ── */}
+          <div className="rounded-lg border border-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowCardDetails((v) => !v)}
+              className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium hover:bg-secondary/40 transition-colors"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="shrink-0">Card Details</span>
+                {!showCardDetails && (formData.cardNumber || formData.cardName) && (
+                  <span className="truncate text-xs font-normal text-muted-foreground">
+                    {[formData.cardNumber, formData.cardName, formData.rarity, formData.language]
+                      .filter(Boolean).join(' · ')}
+                  </span>
+                )}
+              </div>
+              <ChevronDown
+                className={`ml-2 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${showCardDetails ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {showCardDetails && (
+              <div className="space-y-4 border-t border-border px-4 pb-4 pt-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel>Card Number *</FieldLabel>
+                    <Input
+                      placeholder="e.g., OP01-001"
+                      value={formData.cardNumber}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, cardNumber: e.target.value }))
+                      }
+                      required
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>Card Name *</FieldLabel>
+                    <Input
+                      placeholder="e.g., Monkey D. Luffy"
+                      value={formData.cardName}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, cardName: e.target.value }))
+                      }
+                      required
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel>Category *</FieldLabel>
+                    <Select
+                      value={formData.category}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({ ...prev, category: value as CardCategory }))
+                      }
+                    >
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CARD_CATEGORIES.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field>
+                    <FieldLabel>Rarity *</FieldLabel>
+                    <Select
+                      value={formData.rarity}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({ ...prev, rarity: value as CardRarity }))
+                      }
+                    >
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CARD_RARITIES.map((rarity) => (
+                          <SelectItem key={rarity} value={rarity}>
+                            {rarity} - {RARITY_LABELS[rarity]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+
+                <Field>
+                  <FieldLabel>Colors *</FieldLabel>
+                  <div className="flex flex-wrap gap-3 rounded-md border border-border bg-input/30 p-3">
+                    {CARD_COLORS.map((color) => (
+                      <label key={color} className="flex cursor-pointer items-center gap-2">
+                        <Checkbox
+                          checked={formData.colors.includes(color)}
+                          onCheckedChange={() => handleColorToggle(color)}
+                        />
+                        <span className={`rounded px-2 py-0.5 text-xs font-medium badge-${color.toLowerCase()}`}>
+                          {color}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </Field>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel>Language *</FieldLabel>
+                    <Select
+                      value={formData.language}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({ ...prev, language: value as CardLanguage }))
+                      }
+                    >
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CARD_LANGUAGES.map((lang) => (
+                          <SelectItem key={lang} value={lang}>
+                            {lang === 'EN' ? 'English' : 'Japanese'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field>
+                    <FieldLabel>Variant *</FieldLabel>
+                    <Select
+                      value={formData.variant}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({ ...prev, variant: value as CardVariant }))
+                      }
+                    >
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CARD_VARIANTS.map((variant) => (
+                          <SelectItem key={variant} value={variant}>{variant}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── More Details (always visible) ── */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel>PSA Grade</FieldLabel>
               <Input
@@ -602,59 +607,23 @@ export function CardForm({
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
-                    psaGrade: e.target.value
-                      ? parseInt(e.target.value)
-                      : undefined,
+                    psaGrade: e.target.value ? parseInt(e.target.value) : undefined,
                   }))
                 }
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Notes</FieldLabel>
+              <Textarea
+                placeholder="Any additional notes..."
+                value={formData.notes}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, notes: e.target.value }))
+                }
+                rows={3}
               />
             </Field>
           </div>
-
-          {/* Purchase Info */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel>Date Purchased *</FieldLabel>
-              <Input
-                type="date"
-                value={formData.datePurchased}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    datePurchased: e.target.value,
-                  }))
-                }
-                required
-              />
-            </Field>
-
-            <Field>
-              <FieldLabel>Where Bought</FieldLabel>
-              <Input
-                placeholder="e.g., TCGPlayer, Local Shop"
-                value={formData.whereBought}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    whereBought: e.target.value,
-                  }))
-                }
-              />
-            </Field>
-          </div>
-
-          {/* Notes */}
-          <Field>
-            <FieldLabel>Notes</FieldLabel>
-            <Textarea
-              placeholder="Any additional notes..."
-              value={formData.notes}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, notes: e.target.value }))
-              }
-              rows={3}
-            />
-          </Field>
 
           <DialogFooter>
             <Button
