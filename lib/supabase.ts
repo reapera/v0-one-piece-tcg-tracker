@@ -67,3 +67,23 @@ export function cardToRow(card: Omit<Card, 'id'>): Omit<CardRow, 'id' | 'created
     image_url: card.imageUrl ?? null,
   };
 }
+
+export function partialCardToRow(updates: Partial<Omit<Card, 'id'>>): Partial<Omit<CardRow, 'id' | 'created_at'>> {
+  const row: Partial<Omit<CardRow, 'id' | 'created_at'>> = {};
+  if (updates.cardNumber   !== undefined) row.card_number    = updates.cardNumber;
+  if (updates.cardName     !== undefined) row.card_name      = updates.cardName;
+  if (updates.category     !== undefined) row.category       = updates.category;
+  if (updates.colors       !== undefined) row.colors         = updates.colors;
+  if (updates.rarity       !== undefined) row.rarity         = updates.rarity;
+  if (updates.variant      !== undefined) row.variant        = updates.variant;
+  if (updates.language     !== undefined) row.language       = updates.language;
+  if (updates.quantity     !== undefined) row.quantity       = updates.quantity;
+  if (updates.condition    !== undefined) row.condition      = updates.condition;
+  if (updates.buyPrice     !== undefined) row.buy_price      = updates.buyPrice;
+  if (updates.datePurchased !== undefined) row.date_purchased = updates.datePurchased;
+  if (updates.whereBought  !== undefined) row.where_bought   = updates.whereBought;
+  if (updates.psaGrade     !== undefined) row.psa_grade      = updates.psaGrade ?? null;
+  if (updates.notes        !== undefined) row.notes          = updates.notes ?? null;
+  if (updates.imageUrl     !== undefined) row.image_url      = updates.imageUrl ?? null;
+  return row;
+}

@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, rowToCard, cardToRow, type CardRow } from '@/lib/supabase';
-import { getStoragePath } from '@/lib/compress-image';
 import type { Card } from '@/lib/types';
 
 export function useCollection() {
@@ -12,98 +10,64 @@ export function useCollection() {
   useEffect(() => {
     let cancelled = false;
 
-    supabase
-      .from('cards')
-      .select('*')
-      .order('created_at', { ascending: true })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          console.error('Failed to load collection:', error.message);
-        } else {
-          setCards((data as CardRow[]).map(rowToCard));
-        }
-        setIsLoaded(true);
-      });
+    fetch('/api/cards')
+      .then((res) => res.json())
+      .then((data: Card[]) => {
+        if (!cancelled) setCards(data);
+      })
+      .catch((err) => console.error('Failed to load collection:', err))
+      .finally(() => { if (!cancelled) setIsLoaded(true); });
 
     return () => { cancelled = true; };
   }, []);
 
   const addCard = useCallback(async (card: Omit<Card, 'id'>) => {
-    const { data, error } = await supabase
-      .from('cards')
-      .insert(cardToRow(card))
-      .select()
-      .single();
+    const res = await fetch('/api/cards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(card),
+    });
 
-    if (error) {
-      console.error('Failed to add card:', error.message);
+    if (!res.ok) {
+      console.error('Failed to add card:', await res.text());
       return;
     }
 
-    setCards((prev) => [...prev, rowToCard(data as CardRow)]);
-    return rowToCard(data as CardRow);
+    const created: Card = await res.json();
+    setCards((prev) => [...prev, created]);
+    return created;
   }, []);
 
   const updateCard = useCallback(async (id: string, updates: Partial<Omit<Card, 'id'>>) => {
-    const partial: Partial<ReturnType<typeof cardToRow>> = {};
+    const res = await fetch(`/api/cards/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
 
-    if (updates.cardNumber   !== undefined) partial.card_number   = updates.cardNumber;
-    if (updates.cardName     !== undefined) partial.card_name     = updates.cardName;
-    if (updates.category     !== undefined) partial.category      = updates.category;
-    if (updates.colors       !== undefined) partial.colors        = updates.colors;
-    if (updates.rarity       !== undefined) partial.rarity        = updates.rarity;
-    if (updates.variant      !== undefined) partial.variant       = updates.variant;
-    if (updates.language     !== undefined) partial.language      = updates.language;
-    if (updates.quantity     !== undefined) partial.quantity      = updates.quantity;
-    if (updates.condition    !== undefined) partial.condition     = updates.condition;
-    if (updates.buyPrice     !== undefined) partial.buy_price     = updates.buyPrice;
-    if (updates.datePurchased !== undefined) partial.date_purchased = updates.datePurchased;
-    if (updates.whereBought  !== undefined) partial.where_bought  = updates.whereBought;
-    if (updates.psaGrade     !== undefined) partial.psa_grade     = updates.psaGrade ?? null;
-    if (updates.notes        !== undefined) partial.notes         = updates.notes ?? null;
-    if (updates.imageUrl     !== undefined) partial.image_url     = updates.imageUrl ?? null;
-
-    const { data, error } = await supabase
-      .from('cards')
-      .update(partial)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Failed to update card:', error.message);
+    if (!res.ok) {
+      console.error('Failed to update card:', await res.text());
       return;
     }
 
-    setCards((prev) =>
-      prev.map((c) => (c.id === id ? rowToCard(data as CardRow) : c))
-    );
+    const updated: Card = await res.json();
+    setCards((prev) => prev.map((c) => (c.id === id ? updated : c)));
   }, []);
 
   const deleteCard = useCallback(async (id: string) => {
-    const card = cards.find((c) => c.id === id);
+    const res = await fetch(`/api/cards/${id}`, { method: 'DELETE' });
 
-    const { error } = await supabase.from('cards').delete().eq('id', id);
-    if (error) {
-      console.error('Failed to delete card:', error.message);
+    if (!res.ok) {
+      console.error('Failed to delete card:', await res.text());
       return;
     }
 
-    // Clean up image from Storage if present
-    if (card?.imageUrl) {
-      const path = getStoragePath(card.imageUrl, 'card-images');
-      if (path) {
-        await supabase.storage.from('card-images').remove([path]);
-      }
-    }
-
     setCards((prev) => prev.filter((c) => c.id !== id));
-  }, [cards]);
+  }, []);
 
   const getCard = useCallback(
     (id: string) => cards.find((c) => c.id === id),
-    [cards]
+    [cards],
   );
 
   return { cards, isLoaded, addCard, updateCard, deleteCard, getCard };
