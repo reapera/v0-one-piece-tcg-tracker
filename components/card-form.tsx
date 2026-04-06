@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Camera, ImageIcon, X, Link, ClipboardPaste } from 'lucide-react';
+import { Camera, ImageIcon, X, Link, ClipboardPaste, ScanLine, Loader2 } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -78,6 +78,9 @@ export function CardForm({
   const [isUploading, setIsUploading] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [scanImageData, setScanImageData] = useState<{ base64: string; mimeType: string } | null>(null);
+  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -106,12 +109,29 @@ export function CardForm({
     }
     setUrlInput('');
     setShowUrlInput(false);
+    setLocalPreview(null);
+    setScanImageData(null);
+    setScanStatus('idle');
   }, [editCard, open]);
 
   const uploadImageFile = async (file: File) => {
+    const preview = URL.createObjectURL(file);
+    setLocalPreview(preview);
     setIsUploading(true);
+    setScanImageData(null);
+    setScanStatus('idle');
     try {
       const compressed = await compressImage(file, 200 * 1024);
+
+      // Store base64 of compressed image for scanning
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(compressed);
+      });
+      setScanImageData({ base64, mimeType: 'image/jpeg' });
+
       const path = `${crypto.randomUUID()}.jpg`;
       const { error } = await supabase.storage
         .from('card-images')
@@ -121,6 +141,8 @@ export function CardForm({
       setFormData((prev) => ({ ...prev, imageUrl: publicUrl }));
     } finally {
       setIsUploading(false);
+      URL.revokeObjectURL(preview);
+      setLocalPreview(null);
     }
   };
 
@@ -166,6 +188,8 @@ export function CardForm({
     if (galleryInputRef.current) galleryInputRef.current.value = '';
     setUrlInput('');
     setShowUrlInput(false);
+    setScanImageData(null);
+    setScanStatus('idle');
   };
 
   const handleUrlConfirm = () => {
@@ -173,6 +197,39 @@ export function CardForm({
     if (trimmed) {
       setFormData((prev) => ({ ...prev, imageUrl: trimmed }));
       setShowUrlInput(false);
+    }
+  };
+
+  const handleScanCard = async () => {
+    if (!scanImageData) return;
+    setScanStatus('scanning');
+    try {
+      const res = await fetch('/api/scan-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: scanImageData.base64, mimeType: scanImageData.mimeType }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setFormData((prev) => ({
+        ...prev,
+        ...(data.cardNumber ? { cardNumber: String(data.cardNumber).toUpperCase() } : {}),
+        ...(data.cardName ? { cardName: data.cardName } : {}),
+        ...(data.category && CARD_CATEGORIES.includes(data.category)
+          ? { category: data.category as CardCategory } : {}),
+        ...(data.color
+          ? { colors: (Array.isArray(data.color) ? data.color : [data.color])
+              .filter((c: string) => CARD_COLORS.includes(c as CardColor)) as CardColor[] }
+          : {}),
+        ...(data.rarity && CARD_RARITIES.includes(data.rarity)
+          ? { rarity: data.rarity as CardRarity } : {}),
+        ...(data.language && CARD_LANGUAGES.includes(data.language)
+          ? { language: data.language as CardLanguage } : {}),
+      }));
+      setScanStatus('success');
+    } catch (err) {
+      console.error('Scan failed:', err);
+      setScanStatus('error');
     }
   };
 
@@ -216,6 +273,113 @@ export function CardForm({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Card Image + Scan */}
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <ScanLine className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium text-foreground">Card Image</span>
+              <span className="text-xs text-muted-foreground">— upload to scan and auto-fill</span>
+            </div>
+
+            {formData.imageUrl || isUploading ? (
+              <div className="flex items-start gap-3">
+                {/* Preview */}
+                <div className="relative shrink-0">
+                  {formData.imageUrl ? (
+                    <img
+                      src={formData.imageUrl}
+                      alt="Card preview"
+                      className="h-24 w-auto rounded-lg border border-border object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-24 w-16 items-center justify-center rounded-lg border border-border bg-muted/30">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                  {!isUploading && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon-sm"
+                      className="absolute -right-2 -top-2 h-6 w-6 rounded-full"
+                      onClick={removeImage}
+                    >
+                      <X className="h-3 w-3" />
+                      <span className="sr-only">Remove image</span>
+                    </Button>
+                  )}
+                </div>
+
+                {/* Status + scan button */}
+                <div className="flex-1 space-y-2 pt-1">
+                  {isUploading && (
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Uploading...
+                    </p>
+                  )}
+                  {!isUploading && scanImageData && scanStatus !== 'scanning' && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="gap-2 border-primary/40 text-primary hover:bg-primary/10"
+                      onClick={handleScanCard}
+                    >
+                      <ScanLine className="h-4 w-4" />
+                      Scan Card
+                    </Button>
+                  )}
+                  {scanStatus === 'scanning' && (
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Scanning card...
+                    </p>
+                  )}
+                  {scanStatus === 'success' && (
+                    <p className="rounded-md border border-green-500/20 bg-green-500/10 px-3 py-2 text-sm text-green-400">
+                      Card scanned successfully — please review the fields
+                    </p>
+                  )}
+                  {scanStatus === 'error' && (
+                    <p className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                      Scan failed — please fill in manually
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+                  <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
+                  <Button type="button" variant="outline" onClick={() => cameraInputRef.current?.click()} className="flex-1" disabled={isUploading}>
+                    <Camera className="mr-2 h-4 w-4" />
+                    Take Photo
+                  </Button>
+                  <input ref={galleryInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  <Button type="button" variant="outline" onClick={() => galleryInputRef.current?.click()} className="flex-1" disabled={isUploading}>
+                    <ImageIcon className="mr-2 h-4 w-4" />
+                    Choose from Gallery
+                  </Button>
+                  <Button type="button" variant="outline" onClick={handleClipboardPaste} disabled={isUploading} className="gap-2 sm:px-3" title="Paste image (Cmd+V)">
+                    <ClipboardPaste className="h-4 w-4" />
+                    <span className="sm:hidden">Paste Image</span>
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setShowUrlInput((v) => !v)} disabled={isUploading} className="gap-2 sm:px-3">
+                    <Link className="h-4 w-4" />
+                    <span className="sm:hidden">Paste URL</span>
+                  </Button>
+                </div>
+                {showUrlInput && (
+                  <div className="flex gap-2">
+                    <Input placeholder="https://example.com/card.jpg" value={urlInput} onChange={(e) => setUrlInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleUrlConfirm())} autoFocus />
+                    <Button type="button" onClick={handleUrlConfirm} disabled={!urlInput.trim()}>Use</Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Basic Info */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
@@ -490,118 +654,6 @@ export function CardForm({
               }
               rows={3}
             />
-          </Field>
-
-          {/* Card Image */}
-          <Field>
-            <FieldLabel>Card Image</FieldLabel>
-            <div className="space-y-3">
-              {formData.imageUrl ? (
-                <div className="relative inline-block">
-                  <img
-                    src={formData.imageUrl}
-                    alt="Card preview"
-                    className="h-48 w-auto rounded-lg border border-border object-contain"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon-sm"
-                    className="absolute -right-2 -top-2 h-6 w-6 rounded-full"
-                    onClick={removeImage}
-                  >
-                    <X className="h-3 w-3" />
-                    <span className="sr-only">Remove image</span>
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
-                    {/* Camera Input */}
-                    <input
-                      ref={cameraInputRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                      id="camera-input"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => cameraInputRef.current?.click()}
-                      className="flex-1"
-                      disabled={isUploading}
-                    >
-                      <Camera className="mr-2 h-4 w-4" />
-                      {isUploading ? 'Uploading...' : 'Take Photo'}
-                    </Button>
-
-                    {/* Gallery Input */}
-                    <input
-                      ref={galleryInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                      id="gallery-input"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => galleryInputRef.current?.click()}
-                      className="flex-1"
-                      disabled={isUploading}
-                    >
-                      <ImageIcon className="mr-2 h-4 w-4" />
-                      {isUploading ? 'Uploading...' : 'Choose from Gallery'}
-                    </Button>
-
-                    {/* Clipboard paste */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleClipboardPaste}
-                      disabled={isUploading}
-                      className="gap-2 sm:px-3"
-                      title="Paste image (Cmd+V)"
-                    >
-                      <ClipboardPaste className="h-4 w-4" />
-                      <span className="sm:hidden">Paste Image</span>
-                    </Button>
-
-                    {/* URL toggle */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setShowUrlInput((v) => !v)}
-                      disabled={isUploading}
-                      className="gap-2 sm:px-3"
-                    >
-                      <Link className="h-4 w-4" />
-                      <span className="sm:hidden">Paste URL</span>
-                    </Button>
-                  </div>
-
-                  {/* URL input row */}
-                  {showUrlInput && (
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="https://example.com/card.jpg"
-                        value={urlInput}
-                        onChange={(e) => setUrlInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleUrlConfirm())}
-                        autoFocus
-                      />
-                      <Button type="button" onClick={handleUrlConfirm} disabled={!urlInput.trim()}>
-                        Use
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           </Field>
 
           <DialogFooter>
