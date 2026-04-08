@@ -1,5 +1,32 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextRequest, NextResponse } from 'next/server';
+import sharp from 'sharp';
+
+const MAX_DIMENSION = 1200;
+const MAX_BYTES = 200 * 1024;
+
+async function compressImage(buffer: ArrayBuffer): Promise<{ base64: string; mimeType: string }> {
+  let img = sharp(Buffer.from(buffer)).rotate(); // auto-rotate based on EXIF
+
+  const meta = await img.metadata();
+  const w = meta.width ?? 0;
+  const h = meta.height ?? 0;
+
+  if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
+    img = img.resize(MAX_DIMENSION, MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true });
+  }
+
+  let quality = 85;
+  let output: Buffer;
+  do {
+    output = await img.jpeg({ quality }).toBuffer();
+    if (output.byteLength <= MAX_BYTES) break;
+    quality = Math.max(quality - 10, 10);
+  } while (quality > 10);
+
+  console.log(`[telegram-webhook] Compressed image: ${Math.round(output.byteLength / 1024)}KB, quality=${quality}`);
+  return { base64: output.toString('base64'), mimeType: 'image/jpeg' };
+}
 
 const SCAN_PROMPT = `You are a One Piece TCG card scanner. Look at this card image carefully and extract the following fields. Return ONLY a valid JSON object with no markdown, no explanation, no code blocks. Fields: cardNumber (e.g. OP01-001), cardName (always translate to English, e.g. if the card is Japanese return the official English name), set (e.g. OP01, ST-01, EB04, P for promo), category (one of: Leader, Character, Event, Stage, DON!!), color (one or more of: Red, Green, Blue, Purple, Black, Yellow), cost (number or null), power (number or null), rarity (one of: C, UC, R, SR, SEC, L, SP, Promo), attribute (one of: Slash, Strike, Ranged, Special, Wisdom, or null), type (the affiliation text e.g. Straw Hat Pirates), effectText, language (EN or JP). If a field is not visible or not applicable return null.`;
 
@@ -118,17 +145,24 @@ export async function POST(req: NextRequest) {
       const imgRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${filePath}`);
       if (!imgRes.ok) throw new Error('Failed to download photo from Telegram');
       const imgBuffer = await imgRes.arrayBuffer();
-      const imgBase64 = Buffer.from(imgBuffer).toString('base64');
+      console.log(`[telegram-webhook] Downloaded image: filePath=${filePath}, size=${Math.round(imgBuffer.byteLength / 1024)}KB`);
 
-      // Detect mime type from file extension (Telegram sends jpg)
-      const ext = filePath.split('.').pop()?.toLowerCase();
-      const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+      // Compress to match webapp behaviour (max 1200px, max 200KB JPEG)
+      const { base64: imgBase64, mimeType } = await compressImage(imgBuffer);
 
       // Scan the card image
-      const scanResult = await model.generateContent([
-        SCAN_PROMPT,
-        { inlineData: { data: imgBase64, mimeType } },
-      ]);
+      console.log('[telegram-webhook] Calling Gemini for image scan...');
+      let scanResult;
+      try {
+        scanResult = await model.generateContent([
+          SCAN_PROMPT,
+          { inlineData: { data: imgBase64, mimeType } },
+        ]);
+      } catch (geminiErr) {
+        const errMsg = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
+        console.error('[telegram-webhook] Gemini scan error:', errMsg);
+        throw new Error(`Gemini scan failed: ${errMsg}`);
+      }
       const scanRaw = scanResult.response.text().trim();
       console.log('[telegram-webhook] Gemini scan raw:', scanRaw);
 
@@ -164,13 +198,24 @@ export async function POST(req: NextRequest) {
       // Parse caption for supplementary fields (condition, price, where bought, etc.)
       const caption = message.caption?.trim();
       if (caption) {
-        const extraResult = await model.generateContent(
-          `${EXTRA_PROMPT}"${caption}"\n\nToday's date is ${today}.`,
-        );
-        const extraRaw = extraResult.response.text().trim();
+        console.log('[telegram-webhook] Calling Gemini for caption parse...');
+        let extraResult;
+        try {
+          extraResult = await model.generateContent(
+            `${EXTRA_PROMPT}"${caption}"\n\nToday's date is ${today}.`,
+          );
+        } catch (geminiErr) {
+          const errMsg = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
+          console.error('[telegram-webhook] Gemini caption error:', errMsg);
+          // Non-fatal — just log and skip caption parsing
+          console.warn('[telegram-webhook] Skipping caption parse due to Gemini error');
+          extraResult = null;
+        }
+        const extraRaw = extraResult?.response.text().trim() ?? '';
         console.log('[telegram-webhook] Gemini caption raw:', extraRaw);
 
         try {
+          if (!extraRaw) throw new Error('No extraRaw to parse');
           const extra = parseJson(extraRaw);
           // Only override supplementary fields, never card identity
           if (extra.condition) cardData.condition = extra.condition;
@@ -190,7 +235,15 @@ export async function POST(req: NextRequest) {
       // ── Text-only path: full NLP parse ──
       const text = message.text.trim();
       const prompt = `${NLP_PROMPT}"${text}"\n\nToday's date is ${today}.`;
-      const result = await model.generateContent(prompt);
+      console.log('[telegram-webhook] Calling Gemini for NLP parse...');
+      let result;
+      try {
+        result = await model.generateContent(prompt);
+      } catch (geminiErr) {
+        const errMsg = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
+        console.error('[telegram-webhook] Gemini NLP error:', errMsg);
+        throw new Error(`Gemini NLP failed: ${errMsg}`);
+      }
       const raw = result.response.text().trim();
       console.log('[telegram-webhook] Gemini NLP raw:', raw);
 
@@ -253,7 +306,9 @@ export async function POST(req: NextRequest) {
     await sendTelegramMessage(chatId, reply, botToken);
   } catch (err) {
     console.error('[telegram-webhook] Error:', err);
-    const msg = err instanceof Error ? err.message : 'Unknown error';
+    const msg = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error && err.stack ? `\n${err.stack.split('\n').slice(0, 3).join('\n')}` : '';
+    console.error('[telegram-webhook] Stack:', stack);
     await sendTelegramMessage(
       chatId,
       `❌ ${msg}\n\nTip: Send a photo of the card. Add a caption like "NM, $5, bought at TCG shop" for extra details.`,
