@@ -1,6 +1,25 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextRequest, NextResponse } from 'next/server';
 
+const SCAN_PROMPT = `You are a One Piece TCG card scanner. Look at this card image carefully and extract the following fields. Return ONLY a valid JSON object with no markdown, no explanation, no code blocks. Fields: cardNumber (e.g. OP01-001), cardName (always translate to English, e.g. if the card is Japanese return the official English name), set (e.g. OP01, ST-01, EB04, P for promo), category (one of: Leader, Character, Event, Stage, DON!!), color (one or more of: Red, Green, Blue, Purple, Black, Yellow), cost (number or null), power (number or null), rarity (one of: C, UC, R, SR, SEC, L, SP, Promo), attribute (one of: Slash, Strike, Ranged, Special, Wisdom, or null), type (the affiliation text e.g. Straw Hat Pirates), effectText, language (EN or JP). If a field is not visible or not applicable return null.`;
+
+// Only extract supplementary purchase/condition fields — NOT card identity
+const EXTRA_PROMPT = `You are parsing a short note about a card purchase. Extract ONLY these fields and return a valid JSON object with no markdown.
+
+Fields (all optional):
+- condition: one of "Near Mint" | "Lightly Played" | "Moderately Played" | "Heavily Played" | "Damaged". Abbreviations: NM/LM=Near Mint, LP=Lightly Played, MP=Moderately Played, HP=Heavily Played, D=Damaged
+- quantity: integer (number of copies)
+- buyPrice: number (price paid)
+- whereBought: string (shop or platform name)
+- variant: one of "Standard" | "Alt Art" | "Manga Art" | "Parallel" | "Serial"
+- language: "EN" | "JP"
+- notes: string (anything else worth noting)
+- datePurchased: string in YYYY-MM-DD format (only if explicitly mentioned)
+
+Omit any field not mentioned. Do not infer card identity (name, number, rarity) from this text.
+
+Message: `;
+
 const NLP_PROMPT = `You are a One Piece TCG collection assistant. Parse the user's natural language message and extract card data to insert into a collection database.
 
 Return ONLY a valid JSON object with no markdown, no explanation, no code blocks.
@@ -31,6 +50,11 @@ async function sendTelegramMessage(chatId: number, text: string, token: string) 
   });
 }
 
+function parseJson(raw: string): Record<string, unknown> {
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  return JSON.parse(cleaned);
+}
+
 export async function POST(req: NextRequest) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken) {
@@ -41,13 +65,15 @@ export async function POST(req: NextRequest) {
     message?: {
       chat: { id: number };
       text?: string;
+      caption?: string;
+      photo?: { file_id: string; file_size?: number }[];
     };
   };
 
   try {
     update = await req.json();
   } catch {
-    return NextResponse.json({ ok: true }); // Ignore malformed updates
+    return NextResponse.json({ ok: true });
   }
 
   const message = update.message;
@@ -55,43 +81,132 @@ export async function POST(req: NextRequest) {
 
   const chatId = message.chat.id;
 
-  // Security: silently ignore messages from any chat ID other than the owner's
   const allowedChatId = process.env.TELEGRAM_ALLOWED_CHAT_ID;
   if (allowedChatId && String(chatId) !== allowedChatId) {
     return NextResponse.json({ ok: true });
   }
 
-  const text = message.text?.trim();
-  if (!text) {
-    await sendTelegramMessage(
-      chatId,
-      'Send me a text message describing a card to add it to your collection.\n\nExample: "added luffy op01-001 near mint 2 copies"',
-      botToken,
-    );
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    await sendTelegramMessage(chatId, '❌ GEMINI_API_KEY not configured', botToken);
     return NextResponse.json({ ok: true });
   }
 
-  try {
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (!geminiKey) throw new Error('GEMINI_API_KEY not configured');
+  const today = new Date().toISOString().split('T')[0];
 
+  try {
     const genAI = new GoogleGenerativeAI(geminiKey);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    const today = new Date().toISOString().split('T')[0];
-    const prompt = `${NLP_PROMPT}"${text}"\n\nToday's date is ${today}.`;
-
-    const result = await model.generateContent(prompt);
-    const raw = result.response.text().trim();
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-
     let cardData: Record<string, unknown>;
-    try {
-      cardData = JSON.parse(cleaned);
-    } catch {
-      throw new Error(
-        'Could not understand that message. Try: "added luffy op01-001 near mint 2 copies"',
+
+    if (message.photo && message.photo.length > 0) {
+      // ── Photo path: scan image with Gemini, parse caption for extras ──
+
+      // Pick the largest available photo
+      const photo = message.photo[message.photo.length - 1];
+
+      // Resolve Telegram file path
+      const fileRes = await fetch(
+        `https://api.telegram.org/bot${botToken}/getFile?file_id=${photo.file_id}`,
       );
+      const fileData = (await fileRes.json()) as { result: { file_path: string } };
+      const filePath = fileData.result?.file_path;
+      if (!filePath) throw new Error('Could not retrieve photo from Telegram');
+
+      // Download the image
+      const imgRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${filePath}`);
+      if (!imgRes.ok) throw new Error('Failed to download photo from Telegram');
+      const imgBuffer = await imgRes.arrayBuffer();
+      const imgBase64 = Buffer.from(imgBuffer).toString('base64');
+
+      // Detect mime type from file extension (Telegram sends jpg)
+      const ext = filePath.split('.').pop()?.toLowerCase();
+      const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+      // Scan the card image
+      const scanResult = await model.generateContent([
+        SCAN_PROMPT,
+        { inlineData: { data: imgBase64, mimeType } },
+      ]);
+      const scanRaw = scanResult.response.text().trim();
+      console.log('[telegram-webhook] Gemini scan raw:', scanRaw);
+
+      let scanData: Record<string, unknown>;
+      try {
+        scanData = parseJson(scanRaw);
+      } catch {
+        throw new Error('Could not read the card from the image. Try a clearer photo.');
+      }
+
+      // Map scan output to DB schema
+      cardData = {
+        cardNumber: scanData.cardNumber ?? null,
+        cardName: scanData.cardName ?? null,
+        category: scanData.category ?? 'Character',
+        colors: Array.isArray(scanData.color) ? scanData.color : scanData.color ? [scanData.color] : [],
+        cost: scanData.cost ?? null,
+        power: scanData.power ?? null,
+        rarity: scanData.rarity ?? 'C',
+        attribute: scanData.attribute ?? null,
+        type: scanData.type ?? null,
+        effectText: scanData.effectText ?? null,
+        language: scanData.language ?? 'EN',
+        variant: 'Standard',
+        quantity: 1,
+        condition: 'Near Mint',
+        buyPrice: 0,
+        whereBought: '',
+        notes: null,
+        datePurchased: today,
+      };
+
+      // Parse caption for supplementary fields (condition, price, where bought, etc.)
+      const caption = message.caption?.trim();
+      if (caption) {
+        const extraResult = await model.generateContent(
+          `${EXTRA_PROMPT}"${caption}"\n\nToday's date is ${today}.`,
+        );
+        const extraRaw = extraResult.response.text().trim();
+        console.log('[telegram-webhook] Gemini caption raw:', extraRaw);
+
+        try {
+          const extra = parseJson(extraRaw);
+          // Only override supplementary fields, never card identity
+          if (extra.condition) cardData.condition = extra.condition;
+          if (extra.quantity) cardData.quantity = extra.quantity;
+          if (extra.buyPrice !== undefined) cardData.buyPrice = extra.buyPrice;
+          if (extra.whereBought) cardData.whereBought = extra.whereBought;
+          if (extra.variant) cardData.variant = extra.variant;
+          if (extra.language) cardData.language = extra.language;
+          if (extra.notes) cardData.notes = extra.notes;
+          if (extra.datePurchased) cardData.datePurchased = extra.datePurchased;
+        } catch {
+          // Caption parse failed — ignore, proceed with scan data defaults
+          console.warn('[telegram-webhook] Could not parse caption as extras, ignoring');
+        }
+      }
+    } else if (message.text?.trim()) {
+      // ── Text-only path: full NLP parse ──
+      const text = message.text.trim();
+      const prompt = `${NLP_PROMPT}"${text}"\n\nToday's date is ${today}.`;
+      const result = await model.generateContent(prompt);
+      const raw = result.response.text().trim();
+      console.log('[telegram-webhook] Gemini NLP raw:', raw);
+
+      try {
+        cardData = parseJson(raw);
+      } catch {
+        throw new Error('Could not understand that message. Try sending a photo of the card instead.');
+      }
+    } else {
+      // No photo, no text
+      await sendTelegramMessage(
+        chatId,
+        'Send me a photo of a card to add it to your collection.\n\nYou can add a caption with extra details like condition, price, or where you bought it.\n\nExample caption: "NM, $5, bought at local game store"',
+        botToken,
+      );
+      return NextResponse.json({ ok: true });
     }
 
     // Insert via the existing /api/cards route
@@ -103,17 +218,18 @@ export async function POST(req: NextRequest) {
     });
 
     if (!cardRes.ok) {
-      const err = await cardRes.json().catch(() => ({})) as { error?: string };
+      const err = (await cardRes.json().catch(() => ({}))) as { error?: string };
       throw new Error(err.error ?? `Card insert failed (${cardRes.status})`);
     }
 
-    const saved = await cardRes.json() as {
+    const saved = (await cardRes.json()) as {
       cardName?: string;
       cardNumber?: string;
       rarity?: string;
       condition?: string;
       quantity?: number;
       buyPrice?: number;
+      whereBought?: string;
     };
 
     const conditionShort: Record<string, string> = {
@@ -121,7 +237,7 @@ export async function POST(req: NextRequest) {
       'Lightly Played': 'LP',
       'Moderately Played': 'MP',
       'Heavily Played': 'HP',
-      'Damaged': 'D',
+      Damaged: 'D',
     };
     const cond = saved.condition ? (conditionShort[saved.condition] ?? saved.condition) : 'NM';
 
@@ -129,6 +245,7 @@ export async function POST(req: NextRequest) {
       `✅ Added: ${saved.cardName ?? 'Unknown'} ${saved.cardNumber ?? ''}`.trimEnd(),
       `${saved.rarity ?? 'C'} · ${cond} · x${saved.quantity ?? 1}`,
       saved.buyPrice ? `💰 $${saved.buyPrice}` : null,
+      saved.whereBought ? `📍 ${saved.whereBought}` : null,
     ]
       .filter(Boolean)
       .join('\n');
@@ -139,7 +256,7 @@ export async function POST(req: NextRequest) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     await sendTelegramMessage(
       chatId,
-      `❌ ${msg}\n\nExample: "added luffy op01-001 near mint 2 copies"`,
+      `❌ ${msg}\n\nTip: Send a photo of the card. Add a caption like "NM, $5, bought at TCG shop" for extra details.`,
       botToken,
     );
   }
