@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { insertCard } from '@/lib/cards-service';
 import type { Card } from '@/lib/types';
@@ -111,7 +112,25 @@ export async function POST(req: NextRequest) {
     const base64Image = Buffer.from(photoBuffer).toString('base64');
     const mimeType = 'image/jpeg';
 
-    // 3. Scan with Gemini
+    // 3. Upload photo to Supabase Storage
+    let imageUrl: string | undefined;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (supabaseUrl && supabaseKey) {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const path = `${crypto.randomUUID()}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from('card-images')
+        .upload(path, Buffer.from(photoBuffer), { contentType: 'image/jpeg' });
+      if (uploadError) {
+        console.warn('[telegram] Storage upload failed:', uploadError.message);
+      } else {
+        const { data: { publicUrl } } = supabase.storage.from('card-images').getPublicUrl(path);
+        imageUrl = publicUrl;
+      }
+    }
+
+    // 4. Scan with Gemini
     const geminiKey = process.env.GEMINI_API_KEY;
     if (!geminiKey) throw new Error('GEMINI_API_KEY not configured');
 
@@ -133,10 +152,10 @@ export async function POST(req: NextRequest) {
       throw new Error('Gemini returned unparseable response');
     }
 
-    // 4. Parse caption fields
+    // 5. Parse caption fields
     const captionFields = message.caption ? parseCaption(message.caption) : {};
 
-    // 5. Build card — scanned data fills card details, caption fills pricing/condition
+    // 6. Build card — scanned data fills card details, caption fills pricing/condition
     const today = new Date().toISOString().split('T')[0];
     const card: Omit<Card, 'id'> = {
       cardNumber: (scanned.cardNumber as string) ?? '',
@@ -151,9 +170,10 @@ export async function POST(req: NextRequest) {
       buyPrice: captionFields.buyPrice ?? 0,
       datePurchased: captionFields.datePurchased ?? today,
       whereBought: captionFields.whereBought ?? '',
+      imageUrl,
     };
 
-    // 6. Insert into DB
+    // 7. Insert into DB
     const saved = await insertCard(card);
 
     const reply = [
