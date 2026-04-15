@@ -6,14 +6,16 @@ import { DashboardStats } from '@/components/dashboard-stats';
 import { CollectionFilters, type Filters } from '@/components/collection-filters';
 import { CollectionTable } from '@/components/collection-table';
 import { CardForm } from '@/components/card-form';
+import { BatchScanModal } from '@/components/batch-scan-modal';
 import { Button } from '@/components/ui/button';
-import { Plus, Anchor, LayoutGrid, Table2 } from 'lucide-react';
+import { Plus, ScanLine, Anchor, LayoutGrid, Table2 } from 'lucide-react';
 import Link from 'next/link';
 import type { Card } from '@/lib/types';
 
 export default function CardsPage() {
   const { cards, isLoaded, addCard, updateCard, deleteCard } = useCollection();
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isBatchScanOpen, setIsBatchScanOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [filters, setFilters] = useState<Filters>({
     search: '',
@@ -95,10 +97,16 @@ export default function CardsPage() {
               </Button>
             </nav>
           </div>
-          <Button onClick={() => setIsFormOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Card
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setIsBatchScanOpen(true)} className="gap-2">
+              <ScanLine className="h-4 w-4" />
+              <span className="hidden sm:inline">Batch Scan</span>
+            </Button>
+            <Button onClick={() => setIsFormOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Card
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -124,6 +132,12 @@ export default function CardsPage() {
         onOpenChange={handleFormClose}
         onSubmit={handleFormSubmit}
         editCard={editingCard}
+      />
+
+      <BatchScanModal
+        open={isBatchScanOpen}
+        onOpenChange={setIsBatchScanOpen}
+        onComplete={() => window.location.reload()}
       />
     </div>
   );

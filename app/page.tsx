@@ -12,9 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Anchor, LayoutGrid, Table2, Search, ImageIcon } from 'lucide-react';
+import { Plus, ScanLine, Anchor, LayoutGrid, Table2, Search, ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 import { CardDetail } from '@/components/card-detail';
+import { BatchScanModal } from '@/components/batch-scan-modal';
 import type { Card } from '@/lib/types';
 import { CARD_RARITIES, CARD_CONDITIONS, RARITY_LABELS } from '@/lib/types';
 
@@ -92,6 +93,7 @@ function CardTile({ card, onClick }: { card: Card; onClick: () => void }) {
 export default function Home() {
   const { cards, isLoaded, addCard, updateCard, deleteCard } = useCollection();
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isBatchScanOpen, setIsBatchScanOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [search, setSearch] = useState('');
@@ -168,10 +170,16 @@ export default function Home() {
               </Link>
             </nav>
           </div>
-          <Button onClick={() => setIsFormOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Card
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setIsBatchScanOpen(true)} className="gap-2">
+              <ScanLine className="h-4 w-4" />
+              <span className="hidden sm:inline">Batch Scan</span>
+            </Button>
+            <Button onClick={() => setIsFormOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Card
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -274,6 +282,12 @@ export default function Home() {
         onOpenChange={handleFormClose}
         onSubmit={handleFormSubmit}
         editCard={editingCard}
+      />
+
+      <BatchScanModal
+        open={isBatchScanOpen}
+        onOpenChange={setIsBatchScanOpen}
+        onComplete={() => window.location.reload()}
       />
     </div>
   );
