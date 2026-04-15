@@ -26,7 +26,7 @@ function normalizeColors(color: string | string[] | null | undefined): CardColor
   return valid.length > 0 ? valid : ['Red'];
 }
 
-function buildCardFromGemini(gemini: GeminiCardData) {
+function buildCardFromGemini(gemini: GeminiCardData, imageUrl?: string) {
   const today = new Date().toISOString().split('T')[0];
 
   return {
@@ -48,6 +48,7 @@ function buildCardFromGemini(gemini: GeminiCardData) {
     buyPrice: 1,
     datePurchased: today,
     whereBought: '',
+    ...(imageUrl ? { imageUrl } : {}),
   };
 }
 
@@ -95,7 +96,7 @@ export async function OPTIONS() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const images: { image: string; mimeType: string }[] = body?.images;
+    const images: { image: string; mimeType: string; imageUrl?: string }[] = body?.images;
 
     if (!Array.isArray(images) || images.length === 0) {
       return NextResponse.json(
@@ -118,7 +119,7 @@ export async function POST(req: NextRequest) {
     const results = [];
 
     for (let i = 0; i < images.length; i++) {
-      const { image, mimeType } = images[i] ?? {};
+      const { image, mimeType, imageUrl } = images[i] ?? {};
 
       if (!image || !mimeType) {
         results.push({ index: i, status: 'error', error: 'Missing image or mimeType', card: null, geminiData: null });
@@ -153,7 +154,7 @@ export async function POST(req: NextRequest) {
 
       // Step 2: save or bump duplicate (fatal — report error if this fails)
       try {
-        const cardData = buildCardFromGemini(geminiData);
+        const cardData = buildCardFromGemini(geminiData, imageUrl);
         const duplicate = await findDuplicateCard(cardData.cardNumber, cardData.language, cardData.variant);
 
         if (duplicate) {
