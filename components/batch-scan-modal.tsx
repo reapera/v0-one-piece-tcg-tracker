@@ -10,13 +10,13 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ScanLine, ImagePlus, CircleCheckBig, CircleX, TriangleAlert, Loader2, X } from 'lucide-react';
+import { ScanLine, ImagePlus, CircleCheckBig, CircleX, TriangleAlert, CopyPlus, Loader2, X } from 'lucide-react';
 import { compressImage } from '@/lib/compress-image';
 
 interface ScanItem {
   file: File;
   preview: string;
-  status: 'pending' | 'scanning' | 'success' | 'warning' | 'error';
+  status: 'pending' | 'scanning' | 'success' | 'warning' | 'duplicate' | 'error';
   cardName?: string;
   cardNumber?: string;
   warning?: string;
@@ -140,6 +140,18 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
             updated[i] = { ...updated[i], status: 'error', error: result.error };
             return updated;
           });
+        } else if (result.status === 'duplicate') {
+          setItems((prev) => {
+            const updated = [...prev];
+            updated[i] = {
+              ...updated[i],
+              status: 'duplicate',
+              cardName: result.card?.cardName,
+              cardNumber: result.card?.cardNumber,
+              warning: result.message,
+            };
+            return updated;
+          });
         } else {
           setItems((prev) => {
             const updated = [...prev];
@@ -174,6 +186,7 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
   // ── render helpers ────────────────────────────────────────────────────────
 
   const succeeded = items.filter((it) => it.status === 'success' || it.status === 'warning').length;
+  const duplicates = items.filter((it) => it.status === 'duplicate').length;
   const failed = items.filter((it) => it.status === 'error').length;
   const pending = items.filter((it) => it.status === 'pending').length;
 
@@ -237,7 +250,14 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
         {isDone && (
           <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
             <span className="font-semibold text-foreground">{succeeded}</span>
-            <span className="text-muted-foreground"> saved successfully</span>
+            <span className="text-muted-foreground"> saved</span>
+            {duplicates > 0 && (
+              <>
+                <span className="mx-2 text-muted-foreground">·</span>
+                <span className="font-semibold text-yellow-400">{duplicates}</span>
+                <span className="text-muted-foreground"> qty bumped</span>
+              </>
+            )}
             {failed > 0 && (
               <>
                 <span className="mx-2 text-muted-foreground">·</span>
@@ -288,6 +308,11 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
                           <CircleCheckBig className="h-5 w-5 text-green-400" />
                         </div>
                       )}
+                      {item.status === 'duplicate' && (
+                        <div className="rounded-full bg-black/60 p-1.5">
+                          <CopyPlus className="h-5 w-5 text-yellow-400" />
+                        </div>
+                      )}
                       {item.status === 'error' && (
                         <div className="rounded-full bg-black/60 p-1.5">
                           <CircleX className="h-5 w-5 text-destructive" />
@@ -320,6 +345,17 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
                             Defaults used
                           </p>
                         )}
+                      </>
+                    ) : item.status === 'duplicate' ? (
+                      <>
+                        <p className="truncate font-medium text-foreground">
+                          {item.cardName ?? 'Unknown Card'}
+                        </p>
+                        <p className="font-mono text-primary">{item.cardNumber ?? '—'}</p>
+                        <p className="mt-0.5 flex items-center gap-1 text-yellow-400">
+                          <CopyPlus className="h-3 w-3 shrink-0" />
+                          Qty bumped
+                        </p>
                       </>
                     ) : item.status === 'error' ? (
                       <p className="text-destructive line-clamp-2">{item.error}</p>

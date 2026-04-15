@@ -131,6 +131,7 @@ export default function CardsPage() {
         open={isFormOpen}
         onOpenChange={handleFormClose}
         onSubmit={handleFormSubmit}
+        onUpdate={updateCard}
         editCard={editingCard}
       />
 
