@@ -10,7 +10,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ScanLine, ImagePlus, CheckCircle2, XCircle, AlertTriangle, Loader2, X } from 'lucide-react';
+import { ScanLine, ImagePlus, CircleCheckBig, CircleX, TriangleAlert, Loader2, X } from 'lucide-react';
 import { compressImage } from '@/lib/compress-image';
 
 interface ScanItem {
@@ -285,12 +285,12 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
                       )}
                       {(item.status === 'success' || item.status === 'warning') && (
                         <div className="rounded-full bg-black/60 p-1.5">
-                          <CheckCircle2 className="h-5 w-5 text-green-400" />
+                          <CircleCheckBig className="h-5 w-5 text-green-400" />
                         </div>
                       )}
                       {item.status === 'error' && (
                         <div className="rounded-full bg-black/60 p-1.5">
-                          <XCircle className="h-5 w-5 text-destructive" />
+                          <CircleX className="h-5 w-5 text-destructive" />
                         </div>
                       )}
                     </div>
@@ -316,7 +316,7 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
                         <p className="font-mono text-primary">{item.cardNumber ?? '—'}</p>
                         {item.warning && (
                           <p className="mt-0.5 flex items-center gap-1 text-yellow-400">
-                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            <TriangleAlert className="h-3 w-3 shrink-0" />
                             Defaults used
                           </p>
                         )}
