@@ -16,8 +16,9 @@ import { supabase } from '@/lib/supabase';
 
 interface ScanItem {
   file: File;
-  /** Object URL for the original file — revoke on cleanup */
-  preview: string;
+  preview: string;       // object URL — revoke on cleanup
+  imageUrl?: string;     // Supabase public URL, set after upload completes
+  isUploading: boolean;  // true while compressing + uploading to Storage
   status: 'pending' | 'scanning' | 'success' | 'warning' | 'duplicate' | 'error';
   cardName?: string;
   cardNumber?: string;
@@ -28,7 +29,6 @@ interface ScanItem {
 interface BatchScanModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called when the user dismisses the done state so the parent can refresh */
   onComplete?: () => void;
 }
 
@@ -38,22 +38,20 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
   const [isDone, setIsDone] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(-1);
 
-  // Two separate inputs — mirrors card-form.tsx
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
-  const revokeAll = useCallback((list: ScanItem[]) => {
-    list.forEach((it) => { if (it.preview) URL.revokeObjectURL(it.preview); });
-  }, []);
-
   const resetState = useCallback(() => {
-    setItems((prev) => { revokeAll(prev); return []; });
+    setItems((prev) => {
+      prev.forEach((it) => { if (it.preview) URL.revokeObjectURL(it.preview); });
+      return [];
+    });
     setIsScanning(false);
     setIsDone(false);
     setCurrentIndex(-1);
-  }, [revokeAll]);
+  }, []);
 
   const handleClose = useCallback(() => {
     if (isScanning) return;
@@ -62,32 +60,74 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
     onOpenChange(false);
   }, [isScanning, isDone, onComplete, resetState, onOpenChange]);
 
-  // ── file selection ────────────────────────────────────────────────────────
+  // ── file processing — mirrors uploadImageFile() in card-form.tsx ──────────
+  //
+  // Key design: upload happens immediately when a file is selected, exactly
+  // like card-form does. By the time the user hits Scan, imageUrl is ready.
 
-  const addFiles = useCallback((fileList: FileList | null) => {
-    if (!fileList) return;
-    const incoming = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
-    if (!incoming.length) return;
+  const processFile = useCallback(async (file: File) => {
+    // 1. Create object URL for instant preview (synchronous, no race condition)
+    const preview = URL.createObjectURL(file);
 
-    // URL.createObjectURL is synchronous — preview appears immediately, no race condition
-    const newItems: ScanItem[] = incoming.map((file) => ({
+    // 2. Add the item to state immediately so the thumbnail appears right away
+    setItems((prev) => [...prev, {
       file,
-      preview: URL.createObjectURL(file),
+      preview,
+      isUploading: true,
       status: 'pending',
-    }));
+    }]);
 
-    setItems((prev) => [...prev, ...newItems]);
+    try {
+      // 3. Compress — same settings as card-form.tsx
+      const compressed = await compressImage(file, 200 * 1024);
+
+      // 4. Upload to Supabase Storage — same pattern as card-form.tsx
+      const path = `${crypto.randomUUID()}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from('card-images')
+        .upload(path, compressed, { contentType: 'image/jpeg' });
+
+      let imageUrl: string | undefined;
+      if (uploadError) {
+        console.error('[batch-scan] Storage upload failed:', uploadError.message);
+      } else {
+        const { data: { publicUrl } } = supabase.storage
+          .from('card-images')
+          .getPublicUrl(path);
+        imageUrl = publicUrl;
+      }
+
+      // 5. Update this item with the result — find by file reference (same object)
+      setItems((prev) => {
+        const idx = prev.findIndex((it) => it.file === file);
+        if (idx === -1) return prev;
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], imageUrl, isUploading: false };
+        return updated;
+      });
+    } catch (err) {
+      console.error('[batch-scan] processFile error:', err);
+      setItems((prev) => {
+        const idx = prev.findIndex((it) => it.file === file);
+        if (idx === -1) return prev;
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], isUploading: false };
+        return updated;
+      });
+    }
   }, []);
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    addFiles(e.target.files);
-    e.target.value = ''; // reset so the same file can be re-selected
-  };
+  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith('image/'));
+    files.forEach((f) => processFile(f));
+    e.target.value = '';
+  }, [processFile]);
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    addFiles(e.dataTransfer.files);
-  };
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'));
+    files.forEach((f) => processFile(f));
+  }, [processFile]);
 
   const removeItem = (index: number) => {
     setItems((prev) => {
@@ -101,7 +141,7 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
   const startScan = async () => {
     if (!items.length || isScanning) return;
 
-    // Capture the current items list — don't rely on stale closure during async loop
+    // Snapshot items at the moment Scan is clicked
     const snapshot = [...items];
     setIsScanning(true);
     setIsDone(false);
@@ -117,29 +157,11 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
       });
 
       try {
-        // 1. Compress (mirrors card-form.tsx: 200 KB target)
-        const compressed = await compressImage(snapshot[i].file, 200 * 1024);
+        // imageUrl already uploaded during file selection — just read it
+        const { file, imageUrl } = snapshot[i];
 
-        // 2. Upload compressed image to Supabase Storage so the card has an image
-        let imageUrl: string | undefined;
-        try {
-          const path = `${crypto.randomUUID()}.jpg`;
-          const { error: uploadError } = await supabase.storage
-            .from('card-images')
-            .upload(path, compressed, { contentType: 'image/jpeg' });
-          if (!uploadError) {
-            const { data: { publicUrl } } = supabase.storage
-              .from('card-images')
-              .getPublicUrl(path);
-            imageUrl = publicUrl;
-          } else {
-            console.warn(`[batch-scan] Storage upload failed for item ${i}:`, uploadError.message);
-          }
-        } catch (uploadErr) {
-          console.warn(`[batch-scan] Storage upload threw for item ${i}:`, uploadErr);
-        }
-
-        // 3. Convert compressed blob to base64 for Gemini (same as card-form.tsx)
+        // Convert original file to base64 for Gemini (compress again to ensure size)
+        const compressed = await compressImage(file, 200 * 1024);
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve((reader.result as string).split(',')[1]);
@@ -147,7 +169,6 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
           reader.readAsDataURL(compressed);
         });
 
-        // 4. Call the batch scan API with image + optional imageUrl
         const res = await fetch('/api/batch-scan-cards', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -212,8 +233,9 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
     setIsDone(true);
   };
 
-  // ── derived counts ────────────────────────────────────────────────────────
+  // ── derived state ─────────────────────────────────────────────────────────
 
+  const anyUploading = items.some((it) => it.isUploading);
   const succeeded = items.filter((it) => it.status === 'success' || it.status === 'warning').length;
   const duplicates = items.filter((it) => it.status === 'duplicate').length;
   const failed = items.filter((it) => it.status === 'error').length;
@@ -230,15 +252,14 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
             Batch Scan Cards
           </DialogTitle>
           <DialogDescription>
-            Take photos or choose from your gallery. Each card is compressed, scanned by
-            Gemini, and saved automatically with quantity&nbsp;1 and price&nbsp;1.
+            Take photos or choose from your gallery. Each image is uploaded and scanned
+            by Gemini, then saved with quantity&nbsp;1 and price&nbsp;1.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Photo source buttons — same pattern as card-form.tsx */}
+        {/* Photo source buttons — same as card-form.tsx */}
         {!isScanning && (
           <div className="flex gap-2">
-            {/* Hidden camera input */}
             <input
               ref={cameraInputRef}
               type="file"
@@ -258,7 +279,6 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
               Take Photo
             </Button>
 
-            {/* Hidden gallery input — multiple allowed */}
             <input
               ref={galleryInputRef}
               type="file"
@@ -280,7 +300,7 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
           </div>
         )}
 
-        {/* Drag-and-drop zone — shown only when no items yet */}
+        {/* Drop zone — shown when no items yet */}
         {!isScanning && !isDone && items.length === 0 && (
           <div
             onDrop={handleDrop}
@@ -293,7 +313,15 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
           </div>
         )}
 
-        {/* Progress bar */}
+        {/* Uploading notice */}
+        {anyUploading && !isScanning && (
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Uploading photos…
+          </p>
+        )}
+
+        {/* Scan progress bar */}
         {isScanning && (
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
@@ -356,7 +384,12 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
 
                     {/* Status overlay */}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                      {item.status === 'pending' && (
+                      {item.isUploading && (
+                        <div className="rounded-full bg-black/60 p-1.5">
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                      {!item.isUploading && item.status === 'pending' && (
                         <div className="rounded-full bg-black/60 p-1.5">
                           <div className="h-4 w-4 rounded-full border-2 border-muted-foreground" />
                         </div>
@@ -383,7 +416,7 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
                       )}
                     </div>
 
-                    {/* Remove button — only for pending items when not scanning */}
+                    {/* Remove button */}
                     {item.status === 'pending' && !isScanning && (
                       <button
                         onClick={(e) => { e.stopPropagation(); removeItem(i); }}
@@ -396,7 +429,9 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
 
                   {/* Label */}
                   <div className="px-2 py-1.5 text-xs">
-                    {item.status === 'success' || item.status === 'warning' ? (
+                    {item.isUploading ? (
+                      <p className="text-muted-foreground">Uploading…</p>
+                    ) : item.status === 'success' || item.status === 'warning' ? (
                       <>
                         <p className="truncate font-medium text-foreground">
                           {item.cardName ?? 'Unknown Card'}
@@ -442,12 +477,17 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
               </Button>
               <Button
                 onClick={startScan}
-                disabled={isScanning || pending === 0}
+                disabled={isScanning || pending === 0 || anyUploading}
               >
                 {isScanning ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Scanning…
+                  </>
+                ) : anyUploading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Uploading…
                   </>
                 ) : (
                   <>
