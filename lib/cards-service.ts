@@ -42,6 +42,34 @@ export async function patchCard(id: string, updates: Partial<Omit<Card, 'id'>>):
   return rowToCard(data as CardRow);
 }
 
+export async function findDuplicateCard(
+  cardNumber: string,
+  language: string,
+  variant: string,
+): Promise<Card | null> {
+  const supabase = getServerSupabase();
+  const { data, error } = await supabase
+    .from('cards')
+    .select('*')
+    .eq('card_number', cardNumber.trim().toUpperCase())
+    .eq('language', language)
+    .eq('variant', variant)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? rowToCard(data as CardRow) : null;
+}
+
+export async function bumpCardQuantity(
+  id: string,
+  existingQty: number,
+  existingPrice: number,
+  newPrice: number,
+): Promise<Card> {
+  const newQty = existingQty + 1;
+  const avgPrice = Math.round(((existingPrice * existingQty + newPrice) / newQty) * 100) / 100;
+  return patchCard(id, { quantity: newQty, buyPrice: avgPrice });
+}
+
 export async function removeCard(id: string): Promise<void> {
   const supabase = getServerSupabase();
 

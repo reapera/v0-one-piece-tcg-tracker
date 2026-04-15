@@ -47,6 +47,7 @@ interface CardFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (card: Omit<Card, 'id'>) => void;
+  onUpdate?: (id: string, updates: Partial<Omit<Card, 'id'>>) => void;
   editCard?: Card | null;
 }
 
@@ -72,6 +73,7 @@ export function CardForm({
   open,
   onOpenChange,
   onSubmit,
+  onUpdate,
   editCard,
 }: CardFormProps) {
   const [formData, setFormData] = useState(defaultFormData);
@@ -82,6 +84,8 @@ export function CardForm({
   const [scanImageData, setScanImageData] = useState<{ base64: string; mimeType: string } | null>(null);
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
   const [showCardDetails, setShowCardDetails] = useState(true);
+  const [duplicateCard, setDuplicateCard] = useState<Card | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -114,6 +118,8 @@ export function CardForm({
     setScanImageData(null);
     setScanStatus('idle');
     setShowCardDetails(true);
+    setDuplicateCard(null);
+    setIsCheckingDuplicate(false);
   }, [editCard, open]);
 
   const uploadImageFile = async (file: File) => {
@@ -245,20 +251,75 @@ export function CardForm({
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit({
-      ...formData,
-      cardName: formData.cardName
-        .trim()
-        .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()),
-      cardNumber: formData.cardNumber.trim().toUpperCase(),
-      psaGrade: formData.psaGrade || undefined,
-      notes: formData.notes || undefined,
-      imageUrl: formData.imageUrl || undefined,
-    });
+  const buildCardPayload = () => ({
+    ...formData,
+    cardName: formData.cardName
+      .trim()
+      .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()),
+    cardNumber: formData.cardNumber.trim().toUpperCase(),
+    psaGrade: formData.psaGrade || undefined,
+    notes: formData.notes || undefined,
+    imageUrl: formData.imageUrl || undefined,
+  });
+
+  const closeAndReset = () => {
     setFormData(defaultFormData);
+    setDuplicateCard(null);
     onOpenChange(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (duplicateCard) return; // already showing duplicate prompt
+
+    // Skip duplicate check when editing an existing card
+    if (editCard) {
+      onSubmit(buildCardPayload());
+      closeAndReset();
+      return;
+    }
+
+    const cardNumber = formData.cardNumber.trim().toUpperCase();
+    const { language, variant } = formData;
+
+    if (!cardNumber) {
+      onSubmit(buildCardPayload());
+      closeAndReset();
+      return;
+    }
+
+    setIsCheckingDuplicate(true);
+    try {
+      const res = await fetch(
+        `/api/cards/duplicate?cardNumber=${encodeURIComponent(cardNumber)}&language=${encodeURIComponent(language)}&variant=${encodeURIComponent(variant)}`,
+      );
+      const data = await res.json();
+      if (data.duplicate) {
+        setDuplicateCard(data.duplicate as Card);
+        return; // show inline confirmation — don't submit yet
+      }
+    } catch {
+      // If the check fails, proceed with normal save
+    } finally {
+      setIsCheckingDuplicate(false);
+    }
+
+    onSubmit(buildCardPayload());
+    closeAndReset();
+  };
+
+  const handleBumpQty = () => {
+    if (!duplicateCard || !onUpdate) return;
+    const newQty = duplicateCard.quantity + 1;
+    const avgPrice =
+      Math.round(((duplicateCard.buyPrice * duplicateCard.quantity + formData.buyPrice) / newQty) * 100) / 100;
+    onUpdate(duplicateCard.id, { quantity: newQty, buyPrice: avgPrice });
+    closeAndReset();
+  };
+
+  const handleSaveAsNew = () => {
+    onSubmit(buildCardPayload());
+    closeAndReset();
   };
 
   return (
@@ -625,6 +686,47 @@ export function CardForm({
             </Field>
           </div>
 
+          {/* Duplicate card warning */}
+          {duplicateCard && (
+            <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-4 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-yellow-400">Duplicate card detected</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  You already own <span className="font-medium text-foreground">{duplicateCard.quantity}×</span>{' '}
+                  <span className="font-medium text-foreground">{duplicateCard.cardName}</span>{' '}
+                  ({duplicateCard.cardNumber} · {duplicateCard.variant} · {duplicateCard.language}) at{' '}
+                  Rp{duplicateCard.buyPrice.toLocaleString('id-ID')}/card
+                </p>
+                {onUpdate && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    New avg price:{' '}
+                    <span className="font-medium text-foreground">
+                      Rp{(
+                        Math.round(
+                          ((duplicateCard.buyPrice * duplicateCard.quantity + formData.buyPrice) /
+                            (duplicateCard.quantity + 1)) * 100,
+                        ) / 100
+                      ).toLocaleString('id-ID')}
+                    </span>
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {onUpdate && (
+                  <Button type="button" size="sm" onClick={handleBumpQty}>
+                    +1 Qty (avg price)
+                  </Button>
+                )}
+                <Button type="button" size="sm" variant="outline" onClick={handleSaveAsNew}>
+                  Save as new entry
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setDuplicateCard(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
           <DialogFooter>
             <Button
               type="button"
@@ -633,8 +735,16 @@ export function CardForm({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={formData.colors.length === 0 || isUploading}>
-              {editCard ? 'Update Card' : 'Add Card'}
+            <Button
+              type="submit"
+              disabled={formData.colors.length === 0 || isUploading || isCheckingDuplicate || !!duplicateCard}
+            >
+              {isCheckingDuplicate ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Checking...
+                </>
+              ) : editCard ? 'Update Card' : 'Add Card'}
             </Button>
           </DialogFooter>
         </form>

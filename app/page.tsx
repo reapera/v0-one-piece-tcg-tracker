@@ -281,6 +281,7 @@ export default function Home() {
         open={isFormOpen}
         onOpenChange={handleFormClose}
         onSubmit={handleFormSubmit}
+        onUpdate={updateCard}
         editCard={editingCard}
       />
 

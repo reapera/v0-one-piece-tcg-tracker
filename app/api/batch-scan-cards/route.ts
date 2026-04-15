@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextRequest, NextResponse } from 'next/server';
-import { insertCard } from '@/lib/cards-service';
+import { insertCard, findDuplicateCard, patchCard } from '@/lib/cards-service';
 import type { CardCategory, CardColor, CardRarity, CardLanguage } from '@/lib/types';
 
 const SCAN_PROMPT = `You are a One Piece TCG card scanner. Look at this card image carefully and extract the following fields. Return ONLY a valid JSON object with no markdown, no explanation, no code blocks. Fields: cardNumber (e.g. OP01-001), cardName (always translate to English, e.g. if the card is Japanese return the official English name), set (e.g. OP01, ST-01, EB04, P for promo), category (one of: Leader, Character, Event, Stage, DON!!), color (one or more of: Red, Green, Blue, Purple, Black, Yellow), cost (number or null), power (number or null), rarity (one of: C, UC, R, SR, SEC, L, SP, Promo), attribute (one of: Slash, Strike, Ranged, Special, Wisdom, or null), type (the affiliation text e.g. Straw Hat Pirates), effectText, language (EN or JP). If a field is not visible or not applicable return null.`;
@@ -151,14 +151,30 @@ export async function POST(req: NextRequest) {
         console.warn(`[batch-scan] index ${i} Gemini error:`, err);
       }
 
-      // Step 2: save to DB immediately (fatal — report error if this fails)
+      // Step 2: save or bump duplicate (fatal — report error if this fails)
       try {
         const cardData = buildCardFromGemini(geminiData);
-        const saved = await insertCard(cardData);
+        const duplicate = await findDuplicateCard(cardData.cardNumber, cardData.language, cardData.variant);
 
-        const entry: Record<string, unknown> = { index: i, status: 'success', card: saved, geminiData };
-        if (geminiWarning) entry.warning = geminiWarning;
-        results.push(entry);
+        if (duplicate) {
+          // Duplicate found — bump quantity only, leave price unchanged
+          // (batch scan defaults to price=1 which is not meaningful for averaging)
+          const bumped = await patchCard(duplicate.id, { quantity: duplicate.quantity + 1 });
+          const entry: Record<string, unknown> = {
+            index: i,
+            status: 'duplicate',
+            card: bumped,
+            geminiData,
+            message: `Already in collection — quantity bumped to ${bumped.quantity}`,
+          };
+          if (geminiWarning) entry.warning = geminiWarning;
+          results.push(entry);
+        } else {
+          const saved = await insertCard(cardData);
+          const entry: Record<string, unknown> = { index: i, status: 'success', card: saved, geminiData };
+          if (geminiWarning) entry.warning = geminiWarning;
+          results.push(entry);
+        }
       } catch (err) {
         results.push({
           index: i,
@@ -171,10 +187,11 @@ export async function POST(req: NextRequest) {
     }
 
     const succeeded = results.filter(r => r.status === 'success').length;
+    const duplicates = results.filter(r => r.status === 'duplicate').length;
     const failed = results.filter(r => r.status === 'error').length;
 
     return NextResponse.json(
-      { results, summary: { total: images.length, succeeded, failed } },
+      { results, summary: { total: images.length, succeeded, duplicates, failed } },
       { headers: CORS_HEADERS },
     );
   } catch (err) {
