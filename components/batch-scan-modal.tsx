@@ -10,11 +10,13 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ScanLine, ImagePlus, CircleCheckBig, CircleX, TriangleAlert, CopyPlus, Loader2, X } from 'lucide-react';
+import { Camera, ImageIcon, ScanLine, CircleCheckBig, CircleX, TriangleAlert, CopyPlus, Loader2, X } from 'lucide-react';
 import { compressImage } from '@/lib/compress-image';
+import { supabase } from '@/lib/supabase';
 
 interface ScanItem {
   file: File;
+  /** Object URL for the original file — revoke on cleanup */
   preview: string;
   status: 'pending' | 'scanning' | 'success' | 'warning' | 'duplicate' | 'error';
   cardName?: string;
@@ -26,7 +28,7 @@ interface ScanItem {
 interface BatchScanModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called when scanning completes so the parent can refresh its card list */
+  /** Called when the user dismisses the done state so the parent can refresh */
   onComplete?: () => void;
 }
 
@@ -35,19 +37,26 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
   const [isScanning, setIsScanning] = useState(false);
   const [isDone, setIsDone] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(-1);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Two separate inputs — mirrors card-form.tsx
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
+  const revokeAll = useCallback((list: ScanItem[]) => {
+    list.forEach((it) => { if (it.preview) URL.revokeObjectURL(it.preview); });
+  }, []);
+
   const resetState = useCallback(() => {
-    setItems([]);
+    setItems((prev) => { revokeAll(prev); return []; });
     setIsScanning(false);
     setIsDone(false);
     setCurrentIndex(-1);
-  }, []);
+  }, [revokeAll]);
 
   const handleClose = useCallback(() => {
-    if (isScanning) return; // block close mid-scan
+    if (isScanning) return;
     if (isDone && onComplete) onComplete();
     resetState();
     onOpenChange(false);
@@ -55,58 +64,51 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
 
   // ── file selection ────────────────────────────────────────────────────────
 
-  const addFiles = useCallback((fileList: FileList) => {
+  const addFiles = useCallback((fileList: FileList | null) => {
+    if (!fileList) return;
     const incoming = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
     if (!incoming.length) return;
 
-    incoming.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setItems((prev) => {
-          const idx = prev.findIndex((it) => it.file === file);
-          if (idx === -1) return prev;
-          const updated = [...prev];
-          updated[idx] = { ...updated[idx], preview: e.target?.result as string };
-          return updated;
-        });
-      };
-      reader.readAsDataURL(file);
-    });
+    // URL.createObjectURL is synchronous — preview appears immediately, no race condition
+    const newItems: ScanItem[] = incoming.map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+      status: 'pending',
+    }));
 
-    setItems((prev) => [
-      ...prev,
-      ...incoming.map((file) => ({
-        file,
-        preview: '',
-        status: 'pending' as const,
-      })),
-    ]);
+    setItems((prev) => [...prev, ...newItems]);
   }, []);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      addFiles(e.target.files);
-      e.target.value = '';
-    }
+    addFiles(e.target.files);
+    e.target.value = ''; // reset so the same file can be re-selected
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (e.dataTransfer.files) addFiles(e.dataTransfer.files);
+    addFiles(e.dataTransfer.files);
   };
 
   const removeItem = (index: number) => {
-    setItems((prev) => prev.filter((_, i) => i !== index));
+    setItems((prev) => {
+      URL.revokeObjectURL(prev[index].preview);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   // ── scanning ──────────────────────────────────────────────────────────────
 
   const startScan = async () => {
     if (!items.length || isScanning) return;
+
+    // Capture the current items list — don't rely on stale closure during async loop
+    const snapshot = [...items];
     setIsScanning(true);
     setIsDone(false);
 
-    for (let i = 0; i < items.length; i++) {
+    for (let i = 0; i < snapshot.length; i++) {
+      if (snapshot[i].status !== 'pending') continue;
+
       setCurrentIndex(i);
       setItems((prev) => {
         const updated = [...prev];
@@ -115,15 +117,42 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
       });
 
       try {
-        // compress before sending to stay within Gemini limits
-        const compressed = await compressImage(items[i].file);
-        const base64 = await blobToBase64(compressed);
+        // 1. Compress (mirrors card-form.tsx: 200 KB target)
+        const compressed = await compressImage(snapshot[i].file, 200 * 1024);
 
+        // 2. Upload compressed image to Supabase Storage so the card has an image
+        let imageUrl: string | undefined;
+        try {
+          const path = `${crypto.randomUUID()}.jpg`;
+          const { error: uploadError } = await supabase.storage
+            .from('card-images')
+            .upload(path, compressed, { contentType: 'image/jpeg' });
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase.storage
+              .from('card-images')
+              .getPublicUrl(path);
+            imageUrl = publicUrl;
+          } else {
+            console.warn(`[batch-scan] Storage upload failed for item ${i}:`, uploadError.message);
+          }
+        } catch (uploadErr) {
+          console.warn(`[batch-scan] Storage upload threw for item ${i}:`, uploadErr);
+        }
+
+        // 3. Convert compressed blob to base64 for Gemini (same as card-form.tsx)
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(compressed);
+        });
+
+        // 4. Call the batch scan API with image + optional imageUrl
         const res = await fetch('/api/batch-scan-cards', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            images: [{ image: base64, mimeType: 'image/jpeg' }],
+            images: [{ image: base64, mimeType: 'image/jpeg', imageUrl }],
           }),
         });
 
@@ -183,12 +212,14 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
     setIsDone(true);
   };
 
-  // ── render helpers ────────────────────────────────────────────────────────
+  // ── derived counts ────────────────────────────────────────────────────────
 
   const succeeded = items.filter((it) => it.status === 'success' || it.status === 'warning').length;
   const duplicates = items.filter((it) => it.status === 'duplicate').length;
   const failed = items.filter((it) => it.status === 'error').length;
   const pending = items.filter((it) => it.status === 'pending').length;
+
+  // ── render ────────────────────────────────────────────────────────────────
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
@@ -199,34 +230,66 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
             Batch Scan Cards
           </DialogTitle>
           <DialogDescription>
-            Select multiple card photos. Each will be scanned by Gemini and saved automatically
-            with quantity&nbsp;1 and price&nbsp;1.
+            Take photos or choose from your gallery. Each card is compressed, scanned by
+            Gemini, and saved automatically with quantity&nbsp;1 and price&nbsp;1.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Drop zone */}
-        {!isScanning && !isDone && (
-          <div
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-            onClick={() => fileInputRef.current?.click()}
-            className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border p-8 text-center transition hover:border-primary/50 hover:bg-primary/5"
-          >
-            <ImagePlus className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm font-medium text-foreground">
-              Click or drag &amp; drop photos here
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Supports JPG, PNG, WEBP — select as many as you like
-            </p>
+        {/* Photo source buttons — same pattern as card-form.tsx */}
+        {!isScanning && (
+          <div className="flex gap-2">
+            {/* Hidden camera input */}
             <input
-              ref={fileInputRef}
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleFileInput}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              disabled={isDone}
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              <Camera className="mr-2 h-4 w-4" />
+              Take Photo
+            </Button>
+
+            {/* Hidden gallery input — multiple allowed */}
+            <input
+              ref={galleryInputRef}
               type="file"
               accept="image/*"
               multiple
               className="hidden"
               onChange={handleFileInput}
             />
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              disabled={isDone}
+              onClick={() => galleryInputRef.current?.click()}
+            >
+              <ImageIcon className="mr-2 h-4 w-4" />
+              Choose from Gallery
+            </Button>
+          </div>
+        )}
+
+        {/* Drag-and-drop zone — shown only when no items yet */}
+        {!isScanning && !isDone && items.length === 0 && (
+          <div
+            onDrop={handleDrop}
+            onDragOver={(e) => e.preventDefault()}
+            className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border p-8 text-center"
+          >
+            <p className="text-sm text-muted-foreground">
+              Or drag &amp; drop photos here
+            </p>
           </div>
         )}
 
@@ -235,7 +298,7 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Scanning {currentIndex + 1} of {items.length}…</span>
-              <span>{succeeded} saved</span>
+              <span>{succeeded + duplicates} processed</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-secondary">
               <div
@@ -268,7 +331,7 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
           </div>
         )}
 
-        {/* Item list */}
+        {/* Item grid */}
         {items.length > 0 && (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -277,7 +340,7 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
                   key={i}
                   className="relative flex flex-col overflow-hidden rounded-lg border border-border bg-card"
                 >
-                  {/* thumbnail */}
+                  {/* Thumbnail */}
                   <div className="relative aspect-[3/4] overflow-hidden bg-muted/30">
                     {item.preview ? (
                       <img
@@ -287,11 +350,11 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
                       />
                     ) : (
                       <div className="flex h-full items-center justify-center">
-                        <ImagePlus className="h-6 w-6 text-muted-foreground/40" />
+                        <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
                       </div>
                     )}
 
-                    {/* status overlay */}
+                    {/* Status overlay */}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                       {item.status === 'pending' && (
                         <div className="rounded-full bg-black/60 p-1.5">
@@ -320,7 +383,7 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
                       )}
                     </div>
 
-                    {/* remove button (only when not scanning) */}
+                    {/* Remove button — only for pending items when not scanning */}
                     {item.status === 'pending' && !isScanning && (
                       <button
                         onClick={(e) => { e.stopPropagation(); removeItem(i); }}
@@ -331,7 +394,7 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
                     )}
                   </div>
 
-                  {/* label */}
+                  {/* Label */}
                   <div className="px-2 py-1.5 text-xs">
                     {item.status === 'success' || item.status === 'warning' ? (
                       <>
@@ -377,15 +440,6 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
               <Button variant="outline" onClick={handleClose} disabled={isScanning}>
                 Cancel
               </Button>
-              {!isScanning && items.length > 0 && (
-                <Button
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <ImagePlus className="mr-2 h-4 w-4" />
-                  Add More
-                </Button>
-              )}
               <Button
                 onClick={startScan}
                 disabled={isScanning || pending === 0}
@@ -408,19 +462,4 @@ export function BatchScanModal({ open, onOpenChange, onComplete }: BatchScanModa
       </DialogContent>
     </Dialog>
   );
-}
-
-// ── utility ───────────────────────────────────────────────────────────────────
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      // strip "data:<mime>;base64," prefix
-      resolve(dataUrl.split(',')[1]);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
 }
