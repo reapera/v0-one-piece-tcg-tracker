@@ -775,7 +775,6 @@ export function CardForm({
               </Button>
             </DialogFooter>
           </div>
-          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
