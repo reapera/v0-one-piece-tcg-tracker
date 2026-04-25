@@ -95,16 +95,6 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete }: CardD
     return () => window.removeEventListener('keydown', handler);
   }, [lightboxOpen]);
 
-  // Block Radix's dismiss-layer (capture-phase pointerdown listener) while
-  // the lightbox is open, so clicking the lightbox backdrop doesn't close
-  // the card-detail Dialog underneath.
-  useEffect(() => {
-    if (!lightboxOpen) return;
-    const block = (e: PointerEvent) => e.stopImmediatePropagation();
-    document.addEventListener('pointerdown', block, { capture: true });
-    return () => document.removeEventListener('pointerdown', block, { capture: true });
-  }, [lightboxOpen]);
-
   // Non-passive wheel + touch listeners (must be imperative, not JSX)
   useEffect(() => {
     const el = overlayRef.current;
@@ -222,7 +212,10 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete }: CardD
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex max-h-[100dvh] w-full flex-col overflow-y-auto sm:max-h-[90vh] sm:max-w-2xl">
+        <DialogContent
+          className="flex max-h-[100dvh] w-full flex-col overflow-y-auto sm:max-h-[90vh] sm:max-w-2xl"
+          onInteractOutside={(e) => { if (lightboxOpen) e.preventDefault(); }}
+        >
           <DialogHeader>
             <DialogTitle className="text-primary pr-6">{card.cardName}</DialogTitle>
             <p className="font-mono text-xs text-muted-foreground">{card.cardNumber}</p>
