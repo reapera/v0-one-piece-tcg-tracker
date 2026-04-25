@@ -753,25 +753,28 @@ export function CardForm({
             </div>
           )}
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={formData.colors.length === 0 || isUploading || isCheckingDuplicate || !!duplicateCard}
-            >
-              {isCheckingDuplicate ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Checking...
-                </>
-              ) : editCard ? 'Update Card' : 'Add Card'}
-            </Button>
+          <div className="sticky bottom-0 -mx-6 -mb-6 border-t border-border bg-background/95 px-6 pb-6 pt-4 backdrop-blur-sm">
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={formData.colors.length === 0 || isUploading || isCheckingDuplicate || !!duplicateCard}
+              >
+                {isCheckingDuplicate ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Checking...
+                  </>
+                ) : editCard ? 'Update Card' : 'Add Card'}
+              </Button>
+            </DialogFooter>
+          </div>
           </DialogFooter>
         </form>
       </DialogContent>
