@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { ColorBadge } from '@/components/color-badge';
 import { Pencil, Trash2, ImageIcon, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { Card } from '@/lib/types';
 import { RARITY_LABELS } from '@/lib/types';
 
@@ -81,12 +82,27 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete }: CardD
     setIsDragging(false);
   }
 
+  // Reset lightbox whenever the card detail dialog closes
+  useEffect(() => {
+    if (!open) closeLightbox();
+  }, [open]);
+
   // Escape key to close
   useEffect(() => {
     if (!lightboxOpen) return;
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeLightbox(); };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, [lightboxOpen]);
+
+  // Block Radix's dismiss-layer (capture-phase pointerdown listener) while
+  // the lightbox is open, so clicking the lightbox backdrop doesn't close
+  // the card-detail Dialog underneath.
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const block = (e: PointerEvent) => e.stopImmediatePropagation();
+    document.addEventListener('pointerdown', block, { capture: true });
+    return () => document.removeEventListener('pointerdown', block, { capture: true });
   }, [lightboxOpen]);
 
   // Non-passive wheel + touch listeners (must be imperative, not JSX)
@@ -310,8 +326,9 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete }: CardD
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Lightbox */}
-      {lightboxOpen && card.imageUrl && (
+      {/* Lightbox — rendered in a portal so it sits outside the Radix Dialog
+           DOM tree and doesn't confuse Radix's dismiss-layer logic */}
+      {lightboxOpen && card.imageUrl && createPortal(
         <div
           ref={overlayRef}
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/92 select-none"
@@ -378,7 +395,8 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete }: CardD
               scroll or pinch to zoom · double-click to toggle
             </p>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
