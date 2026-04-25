@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Camera, ImageIcon, X, Link, ClipboardPaste, ScanLine, Loader2, ChevronDown, Minus, Plus } from 'lucide-react';
+import { ColorBadge } from '@/components/color-badge';
 import {
   Select,
   SelectContent,
@@ -633,9 +634,7 @@ export function CardForm({
                           checked={formData.colors.includes(color)}
                           onCheckedChange={() => handleColorToggle(color)}
                         />
-                        <span className={`rounded px-2 py-0.5 text-xs font-medium badge-${color.toLowerCase()}`}>
-                          {color}
-                        </span>
+                        <ColorBadge color={color} />
                       </label>
                     ))}
                   </div>

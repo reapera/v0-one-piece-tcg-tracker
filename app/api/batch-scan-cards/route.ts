@@ -5,8 +5,8 @@ import type { CardCategory, CardColor, CardRarity, CardLanguage } from '@/lib/ty
 
 const SCAN_PROMPT = `You are a One Piece TCG card scanner. Look at this card image carefully and extract the following fields. Return ONLY a valid JSON object with no markdown, no explanation, no code blocks. Fields: cardNumber (e.g. OP01-001), cardName (always translate to English, e.g. if the card is Japanese return the official English name), set (e.g. OP01, ST-01, EB04, P for promo), category (one of: Leader, Character, Event, Stage, DON!!), color (one or more of: Red, Green, Blue, Purple, Black, Yellow), cost (number or null), power (number or null), rarity (one of: C, UC, R, SR, SEC, L, SP, Promo), attribute (one of: Slash, Strike, Ranged, Special, Wisdom, or null), type (the affiliation text e.g. Straw Hat Pirates), effectText, language (EN or JP). If a field is not visible or not applicable return null.`;
 
-const VALID_CATEGORIES: CardCategory[] = ['Leader', 'Character', 'Event', 'Stage'];
-const VALID_COLORS: CardColor[] = ['Red', 'Green', 'Blue', 'Purple', 'Black', 'Yellow'];
+const VALID_CATEGORIES: CardCategory[] = ['Leader', 'Character', 'Event', 'Stage', 'DON!!'];
+const VALID_COLORS: CardColor[] = ['Red', 'Green', 'Blue', 'Purple', 'Black', 'Yellow', 'DON!!'];
 const VALID_RARITIES: CardRarity[] = ['C', 'UC', 'R', 'SR', 'SEC', 'L', 'SP', 'Promo'];
 const VALID_LANGUAGES: CardLanguage[] = ['EN', 'JP'];
 

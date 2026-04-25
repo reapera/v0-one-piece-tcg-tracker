@@ -15,6 +15,7 @@ const colorClasses: Record<CardColor, string> = {
   Purple: 'badge-purple',
   Black: 'badge-black',
   Yellow: 'badge-yellow',
+  'DON!!': 'badge-don',
 };
 
 export function ColorBadge({ color, className }: ColorBadgeProps) {
