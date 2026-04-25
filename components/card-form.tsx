@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Camera, ImageIcon, X, Link, ClipboardPaste, ScanLine, Loader2, ChevronDown } from 'lucide-react';
+import { Camera, ImageIcon, X, Link, ClipboardPaste, ScanLine, Loader2, ChevronDown, Minus, Plus } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -477,15 +477,41 @@ export function CardForm({
             </Field>
             <Field>
               <FieldLabel>Quantity *</FieldLabel>
-              <Input
-                type="number"
-                min={1}
-                value={formData.quantity}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))
-                }
-                required
-              />
+              <div className="flex items-center rounded-md border border-input bg-background">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 rounded-none rounded-l-md border-r border-input"
+                  onClick={() =>
+                    setFormData((prev) => ({ ...prev, quantity: Math.max(1, prev.quantity - 1) }))
+                  }
+                  disabled={formData.quantity <= 1}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <Input
+                  type="number"
+                  min={1}
+                  value={formData.quantity}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))
+                  }
+                  required
+                  className="h-9 rounded-none border-0 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 rounded-none rounded-r-md border-l border-input"
+                  onClick={() =>
+                    setFormData((prev) => ({ ...prev, quantity: prev.quantity + 1 }))
+                  }
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </Field>
           </div>
 
