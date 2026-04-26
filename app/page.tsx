@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, ScanLine, Anchor, LayoutGrid, Table2, Search, ImageIcon } from 'lucide-react';
+import { Plus, ScanLine, LayoutGrid, Table2, Search, ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 import { CardDetail } from '@/components/card-detail';
 import { BatchScanModal } from '@/components/batch-scan-modal';
@@ -72,7 +72,7 @@ function CardTile({ card, onClick }: { card: Card; onClick: () => void }) {
           <p className="truncate font-semibold leading-tight text-foreground">
             {card.cardName}
           </p>
-          <p className="font-mono text-xs text-primary">{card.cardNumber}</p>
+          <p className="text-xs text-primary">{card.cardNumber}</p>
         </div>
 
         <div className="mt-auto flex items-center justify-between gap-2">
@@ -81,7 +81,7 @@ function CardTile({ card, onClick }: { card: Card; onClick: () => void }) {
           >
             {CONDITION_SHORT[card.condition] ?? card.condition}
           </span>
-          <span className="font-mono text-sm font-semibold text-foreground">
+          <span className="text-sm font-semibold text-foreground">
             Rp{card.buyPrice.toLocaleString('id-ID')}
           </span>
         </div>
@@ -151,7 +151,7 @@ export default function Home() {
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Anchor className="h-6 w-6 text-primary" />
+                <img src="/onepiece-logo.svg" alt="One Piece" className="h-8 w-8" />
               </div>
               <h1 className="hidden text-xl font-bold text-foreground sm:block">
                 My One Piece TCG

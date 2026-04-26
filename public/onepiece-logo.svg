@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 115">
+  <!-- Hat brim -->
+  <ellipse cx="50" cy="34" rx="46" ry="9" fill="#E8B84B"/>
+  <!-- Hat crown -->
+  <path d="M22 34 C21 10 79 10 78 34" fill="#E8B84B"/>
+  <!-- Hat band -->
+  <path d="M22 34 C21 24 79 24 78 34" fill="#CC2200"/>
+
+  <!-- Skull -->
+  <ellipse cx="50" cy="72" rx="30" ry="28" fill="#F2F2F2"/>
+
+  <!-- Eyes -->
+  <circle cx="37" cy="66" r="10" fill="#111"/>
+  <circle cx="63" cy="66" r="10" fill="#111"/>
+
+  <!-- Nose -->
+  <path d="M45 80 L50 87 L55 80" stroke="#111" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Jaw -->
+  <path d="M26 88 Q26 108 50 108 Q74 108 74 88" fill="#F2F2F2"/>
+
+  <!-- Teeth dividers -->
+  <line x1="38" y1="88" x2="38" y2="104" stroke="#111" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="50" y1="88" x2="50" y2="108" stroke="#111" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="62" y1="88" x2="62" y2="104" stroke="#111" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
