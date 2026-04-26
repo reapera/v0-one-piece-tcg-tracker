@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, ScanLine, LayoutGrid, Table2, Search, ImageIcon } from 'lucide-react';
+import { Plus, ScanLine, LayoutGrid, Table2, Search, ImageIcon, TrendingUp, Layers, Star, BarChart3, ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
 import { CardDetail } from '@/components/card-detail';
 import { BatchScanModal } from '@/components/batch-scan-modal';
@@ -35,13 +35,44 @@ const CONDITION_COLOR: Record<string, string> = {
   'Damaged': 'bg-red-500/20 text-red-400 border-red-500/30',
 };
 
+const RARITY_SORT: Record<string, number> = {
+  SEC: 0, L: 1, SP: 2, SR: 3, R: 4, UC: 5, C: 6, Promo: 7,
+};
+
+function getSet(cardNumber: string): string {
+  const m = cardNumber.trim().match(/^(.+)-\d+$/);
+  return m ? m[1].toUpperCase() : cardNumber.toUpperCase();
+}
+
+function StatTile({
+  icon,
+  label,
+  value,
+  sub,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1 px-5 py-4">
+      <div className="flex items-center gap-1.5 text-muted-foreground">
+        {icon}
+        <span className="text-xs font-medium uppercase tracking-wider">{label}</span>
+      </div>
+      <p className="truncate text-xl font-bold text-foreground">{value}</p>
+      {sub && <p className="truncate text-xs text-primary">{sub}</p>}
+    </div>
+  );
+}
+
 function CardTile({ card, onClick }: { card: Card; onClick: () => void }) {
   return (
     <div
       onClick={onClick}
       className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
     >
-      {/* Image */}
       <div className="relative aspect-[2/3] overflow-hidden bg-muted/30">
         {card.imageUrl ? (
           <img
@@ -54,31 +85,21 @@ function CardTile({ card, onClick }: { card: Card; onClick: () => void }) {
             <ImageIcon className="h-10 w-10 text-muted-foreground/40" />
           </div>
         )}
-
-        {/* Game badge */}
         <div className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
           One Piece
         </div>
-
-        {/* Rarity badge */}
         <div className="absolute right-2 top-2 rounded-md bg-primary/80 px-1.5 py-0.5 text-xs font-bold text-primary-foreground backdrop-blur-sm">
           {card.rarity}
         </div>
       </div>
 
-      {/* Details */}
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="min-w-0">
-          <p className="truncate font-semibold leading-tight text-foreground">
-            {card.cardName}
-          </p>
+          <p className="truncate font-semibold leading-tight text-foreground">{card.cardName}</p>
           <p className="text-xs text-primary">{card.cardNumber}</p>
         </div>
-
         <div className="mt-auto flex items-center justify-between gap-2">
-          <span
-            className={`inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium ${CONDITION_COLOR[card.condition]}`}
-          >
+          <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium ${CONDITION_COLOR[card.condition]}`}>
             {CONDITION_SHORT[card.condition] ?? card.condition}
           </span>
           <span className="text-sm font-semibold text-foreground">
@@ -99,41 +120,59 @@ export default function Home() {
   const [search, setSearch] = useState('');
   const [condition, setCondition] = useState('all');
   const [rarity, setRarity] = useState('all');
+  const [setFilter, setSetFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('default');
+
+  const stats = useMemo(() => {
+    const totalValue = cards.reduce((s, c) => s + c.buyPrice * c.quantity, 0);
+    const totalOwned = cards.reduce((s, c) => s + c.quantity, 0);
+    const avgValue = totalOwned > 0 ? totalValue / totalOwned : 0;
+    const mostValuable = cards.length > 0
+      ? cards.reduce((best, c) => c.buyPrice > best.buyPrice ? c : best)
+      : null;
+    return { totalValue, totalOwned, avgValue, mostValuable };
+  }, [cards]);
+
+  const sets = useMemo(() => {
+    const seen = new Set<string>();
+    cards.forEach((c) => seen.add(getSet(c.cardNumber)));
+    return Array.from(seen).sort();
+  }, [cards]);
 
   const filteredCards = useMemo(() => {
-    return cards.filter((card) => {
+    let result = cards.filter((card) => {
       if (search) {
         const q = search.toLowerCase();
-        if (
-          !card.cardName.toLowerCase().includes(q) &&
-          !card.cardNumber.toLowerCase().includes(q)
-        )
-          return false;
+        if (!card.cardName.toLowerCase().includes(q) && !card.cardNumber.toLowerCase().includes(q)) return false;
       }
       if (condition !== 'all' && card.condition !== condition) return false;
       if (rarity !== 'all' && card.rarity !== rarity) return false;
+      if (setFilter !== 'all' && getSet(card.cardNumber) !== setFilter) return false;
       return true;
     });
-  }, [cards, search, condition, rarity]);
 
-  const handleEditCard = (card: Card) => {
-    setEditingCard(card);
-    setIsFormOpen(true);
-  };
+    result = [...result].sort((a, b) => {
+      switch (sortBy) {
+        case 'price-high': return b.buyPrice - a.buyPrice;
+        case 'price-low':  return a.buyPrice - b.buyPrice;
+        case 'name':       return a.cardName.localeCompare(b.cardName);
+        case 'rarity':     return (RARITY_SORT[a.rarity] ?? 9) - (RARITY_SORT[b.rarity] ?? 9);
+        case 'number':     return a.cardNumber.localeCompare(b.cardNumber);
+        case 'date-new':   return b.datePurchased.localeCompare(a.datePurchased);
+        case 'date-old':   return a.datePurchased.localeCompare(b.datePurchased);
+        default:           return 0;
+      }
+    });
 
+    return result;
+  }, [cards, search, condition, rarity, setFilter, sortBy]);
+
+  const handleEditCard = (card: Card) => { setEditingCard(card); setIsFormOpen(true); };
   const handleFormSubmit = (cardData: Omit<Card, 'id'>) => {
-    if (editingCard) {
-      updateCard(editingCard.id, cardData);
-      setEditingCard(null);
-    } else {
-      addCard(cardData);
-    }
+    if (editingCard) { updateCard(editingCard.id, cardData); setEditingCard(null); }
+    else addCard(cardData);
   };
-
-  const handleFormClose = (open: boolean) => {
-    setIsFormOpen(open);
-    if (!open) setEditingCard(null);
-  };
+  const handleFormClose = (open: boolean) => { setIsFormOpen(open); if (!open) setEditingCard(null); };
 
   if (!isLoaded) {
     return (
@@ -153,19 +192,15 @@ export default function Home() {
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                 <img src="/onepiece-logo.svg" alt="One Piece" className="h-8 w-8" />
               </div>
-              <h1 className="hidden text-xl font-bold text-foreground sm:block">
-                My One Piece TCG
-              </h1>
+              <h1 className="hidden text-xl font-bold text-foreground sm:block">My One Piece TCG</h1>
             </div>
             <nav className="flex items-center gap-1">
               <Button variant="ghost" size="sm" className="gap-2 bg-secondary text-foreground">
-                <LayoutGrid className="h-4 w-4" />
-                Gallery
+                <LayoutGrid className="h-4 w-4" />Gallery
               </Button>
               <Link href="/cards">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
-                  <Table2 className="h-4 w-4" />
-                  Table
+                  <Table2 className="h-4 w-4" />Table
                 </Button>
               </Link>
             </nav>
@@ -176,18 +211,65 @@ export default function Home() {
               <span className="hidden sm:inline">Batch Scan</span>
             </Button>
             <Button onClick={() => setIsFormOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Add Card
+              <Plus className="h-4 w-4" />Add Card
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Main */}
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* Search + Filters */}
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
+
+        {/* ── Portfolio Dashboard ── */}
+        {cards.length > 0 && (
+          <div className="mb-6 overflow-hidden rounded-2xl border border-border bg-card">
+            {/* Hero row — total value */}
+            <div className="flex flex-col gap-1 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-6 py-6 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Total Portfolio Value
+                </p>
+                <p className="text-4xl font-extrabold tracking-tight text-primary sm:text-5xl">
+                  Rp{stats.totalValue.toLocaleString('id-ID')}
+                </p>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                  {stats.totalOwned} cards owned · {cards.length} unique entries
+                </p>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                <TrendingUp className="h-6 w-6 text-primary" />
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-2 divide-border/50 border-t border-border/50 sm:grid-cols-4 sm:divide-x">
+              <StatTile
+                icon={<BarChart3 className="h-3.5 w-3.5" />}
+                label="Avg. Card Value"
+                value={`Rp${Math.round(stats.avgValue).toLocaleString('id-ID')}`}
+              />
+              <StatTile
+                icon={<Layers className="h-3.5 w-3.5" />}
+                label="Unique Cards"
+                value={cards.length.toLocaleString()}
+              />
+              <StatTile
+                icon={<Layers className="h-3.5 w-3.5" />}
+                label="Total Owned"
+                value={stats.totalOwned.toLocaleString()}
+              />
+              <StatTile
+                icon={<Star className="h-3.5 w-3.5" />}
+                label="Most Valuable"
+                value={stats.mostValuable?.cardName ?? '—'}
+                sub={stats.mostValuable ? `Rp${stats.mostValuable.buyPrice.toLocaleString('id-ID')}` : undefined}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ── Search + Filters + Sort ── */}
+        <div className="mb-6 flex flex-col gap-3">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search by card name or number..."
@@ -196,7 +278,18 @@ export default function Home() {
               className="pl-9"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {/* Set filter */}
+            <Select value={setFilter} onValueChange={setSetFilter}>
+              <SelectTrigger className="w-28">
+                <SelectValue placeholder="Set" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sets</SelectItem>
+                {sets.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
             <Select value={condition} onValueChange={setCondition}>
               <SelectTrigger className="w-36">
                 <SelectValue placeholder="Condition" />
@@ -204,12 +297,11 @@ export default function Home() {
               <SelectContent>
                 <SelectItem value="all">All Conditions</SelectItem>
                 {CARD_CONDITIONS.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {CONDITION_SHORT[c]} — {c}
-                  </SelectItem>
+                  <SelectItem key={c} value={c}>{CONDITION_SHORT[c]} — {c}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+
             <Select value={rarity} onValueChange={setRarity}>
               <SelectTrigger className="w-36">
                 <SelectValue placeholder="Rarity" />
@@ -217,10 +309,26 @@ export default function Home() {
               <SelectContent>
                 <SelectItem value="all">All Rarities</SelectItem>
                 {CARD_RARITIES.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {r} — {RARITY_LABELS[r]}
-                  </SelectItem>
+                  <SelectItem key={r} value={r}>{r} — {RARITY_LABELS[r]}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+
+            {/* Sort */}
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="ml-auto w-44 gap-1">
+                <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default</SelectItem>
+                <SelectItem value="price-high">Price: High → Low</SelectItem>
+                <SelectItem value="price-low">Price: Low → High</SelectItem>
+                <SelectItem value="rarity">Rarity</SelectItem>
+                <SelectItem value="name">Name A → Z</SelectItem>
+                <SelectItem value="number">Card Number</SelectItem>
+                <SelectItem value="date-new">Date: Newest</SelectItem>
+                <SelectItem value="date-old">Date: Oldest</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -229,15 +337,12 @@ export default function Home() {
         {/* Results count */}
         {cards.length > 0 && (
           <p className="mb-4 text-sm text-muted-foreground">
-            Showing{' '}
-            <span className="font-medium text-foreground">{filteredCards.length}</span>
-            {' '}of{' '}
-            <span className="font-medium text-foreground">{cards.length}</span>
-            {' '}cards
+            Showing <span className="font-medium text-foreground">{filteredCards.length}</span>
+            {' '}of <span className="font-medium text-foreground">{cards.length}</span> cards
           </p>
         )}
 
-        {/* Grid */}
+        {/* ── Card Grid ── */}
         {filteredCards.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-24 text-center">
             <ImageIcon className="mb-4 h-12 w-12 text-muted-foreground/30" />
@@ -251,19 +356,14 @@ export default function Home() {
             </p>
             {cards.length === 0 && (
               <Button onClick={() => setIsFormOpen(true)} className="mt-6 gap-2">
-                <Plus className="h-4 w-4" />
-                Add Card
+                <Plus className="h-4 w-4" />Add Card
               </Button>
             )}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {filteredCards.map((card) => (
-              <CardTile
-                key={card.id}
-                card={card}
-                onClick={() => setSelectedCard(card)}
-              />
+              <CardTile key={card.id} card={card} onClick={() => setSelectedCard(card)} />
             ))}
           </div>
         )}
