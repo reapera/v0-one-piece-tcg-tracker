@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, ScanLine, LayoutGrid, Table2, Search, ImageIcon, TrendingUp, Layers, Star, BarChart3, ArrowUpDown } from 'lucide-react';
+import { Plus, ScanLine, LayoutGrid, Table2, Search, ImageIcon, TrendingUp, Layers, Star, BarChart3, ArrowUpDown, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import { CardDetail } from '@/components/card-detail';
 import { BatchScanModal } from '@/components/batch-scan-modal';
@@ -112,7 +112,7 @@ function CardTile({ card, onClick }: { card: Card; onClick: () => void }) {
 }
 
 export default function Home() {
-  const { cards, isLoaded, addCard, updateCard, deleteCard } = useCollection();
+  const { cards, isLoaded, addCard, updateCard, deleteCard, replaceCard } = useCollection();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isBatchScanOpen, setIsBatchScanOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
@@ -201,6 +201,11 @@ export default function Home() {
               <Link href="/cards">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
                   <Table2 className="h-4 w-4" />Table
+                </Button>
+              </Link>
+              <Link href="/sells">
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+                  <DollarSign className="h-4 w-4" />Sells
                 </Button>
               </Link>
             </nav>
@@ -375,6 +380,10 @@ export default function Home() {
         onOpenChange={(open) => { if (!open) setSelectedCard(null); }}
         onEdit={handleEditCard}
         onDelete={deleteCard}
+        onSell={(updatedCard) => {
+          replaceCard(updatedCard);
+          setSelectedCard(updatedCard);
+        }}
       />
 
       <CardForm
