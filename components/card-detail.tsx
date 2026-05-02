@@ -19,10 +19,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ColorBadge } from '@/components/color-badge';
-import { Pencil, Trash2, ImageIcon, ZoomIn, ZoomOut } from 'lucide-react';
+import { Pencil, Trash2, ImageIcon, ZoomIn, ZoomOut, DollarSign } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import type { Card } from '@/lib/types';
 import { RARITY_LABELS } from '@/lib/types';
+import { SellDialog } from '@/components/sell-dialog';
 
 const CONDITION_COLOR: Record<string, string> = {
   'Near Mint': 'bg-green-500/20 text-green-400 border-green-500/30',
@@ -38,6 +39,7 @@ interface CardDetailProps {
   onOpenChange: (open: boolean) => void;
   onEdit: (card: Card) => void;
   onDelete: (id: string) => void;
+  onSell?: (updatedCard: Card) => void;
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -49,8 +51,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export function CardDetail({ card, open, onOpenChange, onEdit, onDelete }: CardDetailProps) {
+export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell }: CardDetailProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sellDialogOpen, setSellDialogOpen] = useState(false);
 
   // Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -265,6 +268,15 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete }: CardD
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setSellDialogOpen(true)}
+              disabled={card.quantity === 0}
+              className="gap-2 mr-auto"
+              title={card.quantity === 0 ? 'No stock to sell' : undefined}
+            >
+              <DollarSign className="h-4 w-4" />Sell
+            </Button>
             <Button variant="outline" onClick={handleEdit} className="gap-2">
               <Pencil className="h-4 w-4" />Edit
             </Button>
@@ -292,6 +304,17 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete }: CardD
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Sell dialog */}
+      <SellDialog
+        card={card}
+        open={sellDialogOpen}
+        onOpenChange={setSellDialogOpen}
+        onSell={(updatedCard) => {
+          onSell?.(updatedCard);
+          setSellDialogOpen(false);
+        }}
+      />
 
       {/* Lightbox — nested Radix Dialog so Radix manages the layer stack:
           Escape closes only the lightbox, not the card-detail dialog underneath */}

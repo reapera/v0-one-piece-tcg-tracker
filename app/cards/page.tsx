@@ -8,7 +8,7 @@ import { CollectionTable } from '@/components/collection-table';
 import { CardForm } from '@/components/card-form';
 import { BatchScanModal } from '@/components/batch-scan-modal';
 import { Button } from '@/components/ui/button';
-import { Plus, ScanLine, Anchor, LayoutGrid, Table2 } from 'lucide-react';
+import { Plus, ScanLine, LayoutGrid, Table2, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import type { Card } from '@/lib/types';
 
@@ -78,7 +78,7 @@ export default function CardsPage() {
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Anchor className="h-6 w-6 text-primary" />
+                <img src="/onepiece-logo.svg" alt="One Piece" className="h-8 w-8" />
               </div>
               <h1 className="text-xl font-bold text-foreground hidden sm:block">
                 My One Piece TCG
@@ -92,9 +92,13 @@ export default function CardsPage() {
                 </Button>
               </Link>
               <Button variant="ghost" size="sm" className="gap-2 text-foreground bg-secondary">
-                <Table2 className="h-4 w-4" />
-                Table
+                <Table2 className="h-4 w-4" />Table
               </Button>
+              <Link href="/sells">
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+                  <DollarSign className="h-4 w-4" />Sells
+                </Button>
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-2">

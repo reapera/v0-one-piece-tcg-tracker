@@ -70,5 +70,9 @@ export function useCollection() {
     [cards],
   );
 
-  return { cards, isLoaded, addCard, updateCard, deleteCard, getCard };
+  const replaceCard = useCallback((card: Card) => {
+    setCards((prev) => prev.map((c) => (c.id === card.id ? card : c)));
+  }, []);
+
+  return { cards, isLoaded, addCard, updateCard, deleteCard, getCard, replaceCard };
 }
