@@ -85,7 +85,7 @@ function CardTile({ card, onClick }: { card: Card; onClick: () => void }) {
             <ImageIcon className="h-10 w-10 text-muted-foreground/40" />
           </div>
         )}
-        <div className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+        <div className="absolute left-2 top-2 hidden rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
           One Piece
         </div>
         <div className="absolute right-2 top-2 rounded-md bg-primary/80 px-1.5 py-0.5 text-xs font-bold text-primary-foreground backdrop-blur-sm">
@@ -99,8 +99,8 @@ function CardTile({ card, onClick }: { card: Card; onClick: () => void }) {
           <p className="text-xs text-primary">{card.cardNumber}</p>
         </div>
         <div className="mt-auto flex items-center justify-between gap-2">
-          <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium ${CONDITION_COLOR[card.condition]}`}>
-            {CONDITION_SHORT[card.condition] ?? card.condition}
+          <span className="inline-flex items-center rounded border border-border bg-muted/50 px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+            ×{card.quantity}
           </span>
           <span className="text-sm font-semibold text-foreground">
             Rp{card.buyPrice.toLocaleString('id-ID')}
