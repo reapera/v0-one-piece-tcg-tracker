@@ -81,16 +81,16 @@ export default function SellsPage() {
             <nav className="flex items-center gap-1">
               <Link href="/">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
-                  <LayoutGrid className="h-4 w-4" />Gallery
+                  <LayoutGrid className="h-4 w-4" /><span className="hidden sm:inline">Gallery</span>
                 </Button>
               </Link>
               <Link href="/cards">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
-                  <Table2 className="h-4 w-4" />Table
+                  <Table2 className="h-4 w-4" /><span className="hidden sm:inline">Table</span>
                 </Button>
               </Link>
               <Button variant="ghost" size="sm" className="gap-2 bg-secondary text-foreground">
-                <DollarSign className="h-4 w-4" />Sells
+                <DollarSign className="h-4 w-4" /><span className="hidden sm:inline">Sells</span>
               </Button>
             </nav>
           </div>

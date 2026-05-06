@@ -196,16 +196,16 @@ export default function Home() {
             </div>
             <nav className="flex items-center gap-1">
               <Button variant="ghost" size="sm" className="gap-2 bg-secondary text-foreground">
-                <LayoutGrid className="h-4 w-4" />Gallery
+                <LayoutGrid className="h-4 w-4" /><span className="hidden sm:inline">Gallery</span>
               </Button>
               <Link href="/cards">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
-                  <Table2 className="h-4 w-4" />Table
+                  <Table2 className="h-4 w-4" /><span className="hidden sm:inline">Table</span>
                 </Button>
               </Link>
               <Link href="/sells">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
-                  <DollarSign className="h-4 w-4" />Sells
+                  <DollarSign className="h-4 w-4" /><span className="hidden sm:inline">Sells</span>
                 </Button>
               </Link>
             </nav>
@@ -216,7 +216,7 @@ export default function Home() {
               <span className="hidden sm:inline">Batch Scan</span>
             </Button>
             <Button onClick={() => setIsFormOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" />Add Card
+              <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add Card</span>
             </Button>
           </div>
         </div>
