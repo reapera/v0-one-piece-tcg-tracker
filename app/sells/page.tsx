@@ -11,6 +11,7 @@ import {
   TrendingDown,
   Receipt,
   BarChart3,
+  Layers,
   Menu,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -106,6 +107,11 @@ export default function SellsPage() {
                 <DropdownMenuItem className="gap-2 bg-secondary" disabled>
                   <DollarSign className="h-4 w-4" />Sells
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/decks" className="flex items-center gap-2">
+                    <Layers className="h-4 w-4" />Decks
+                  </Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -124,6 +130,11 @@ export default function SellsPage() {
               <Button variant="ghost" size="sm" className="gap-2 bg-secondary text-foreground">
                 <DollarSign className="h-4 w-4" />Sells
               </Button>
+              <Link href="/decks">
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+                  <Layers className="h-4 w-4" />Decks
+                </Button>
+              </Link>
             </nav>
           </div>
         </div>

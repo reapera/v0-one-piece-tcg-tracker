@@ -221,6 +221,11 @@ export default function Home() {
                     <DollarSign className="h-4 w-4" />Sells
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/decks" className="flex items-center gap-2">
+                    <Layers className="h-4 w-4" />Decks
+                  </Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -237,6 +242,11 @@ export default function Home() {
               <Link href="/sells">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
                   <DollarSign className="h-4 w-4" />Sells
+                </Button>
+              </Link>
+              <Link href="/decks">
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+                  <Layers className="h-4 w-4" />Decks
                 </Button>
               </Link>
             </nav>
