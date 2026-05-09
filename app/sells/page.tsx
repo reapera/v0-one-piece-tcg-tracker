@@ -11,8 +11,15 @@ import {
   TrendingDown,
   Receipt,
   BarChart3,
+  Menu,
 } from 'lucide-react';
 import Link from 'next/link';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 function StatTile({
   icon,
@@ -78,7 +85,32 @@ export default function SellsPage() {
               </div>
               <h1 className="hidden text-xl font-bold text-foreground sm:block">My One Piece TCG</h1>
             </div>
-            <nav className="flex items-center gap-1">
+            {/* Mobile nav: hamburger */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild className="sm:hidden">
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem asChild>
+                  <Link href="/" className="flex items-center gap-2">
+                    <LayoutGrid className="h-4 w-4" />Gallery
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/cards" className="flex items-center gap-2">
+                    <Table2 className="h-4 w-4" />Table
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2 bg-secondary" disabled>
+                  <DollarSign className="h-4 w-4" />Sells
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Desktop nav */}
+            <nav className="hidden sm:flex items-center gap-1">
               <Link href="/">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
                   <LayoutGrid className="h-4 w-4" />Gallery
