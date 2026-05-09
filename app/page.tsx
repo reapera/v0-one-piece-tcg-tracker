@@ -12,12 +12,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, ScanLine, LayoutGrid, Table2, Search, ImageIcon, TrendingUp, Layers, Star, BarChart3, ArrowUpDown, DollarSign } from 'lucide-react';
+import { Plus, ScanLine, LayoutGrid, Table2, Search, ImageIcon, TrendingUp, Layers, Star, BarChart3, ArrowUpDown, DollarSign, Menu } from 'lucide-react';
 import Link from 'next/link';
 import { CardDetail } from '@/components/card-detail';
 import { BatchScanModal } from '@/components/batch-scan-modal';
 import type { Card } from '@/lib/types';
 import { CARD_RARITIES, CARD_CONDITIONS, RARITY_LABELS } from '@/lib/types';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const CONDITION_SHORT: Record<string, string> = {
   'Near Mint': 'NM',
@@ -194,7 +200,32 @@ export default function Home() {
               </div>
               <h1 className="hidden text-xl font-bold text-foreground sm:block">My One Piece TCG</h1>
             </div>
-            <nav className="flex items-center gap-1">
+            {/* Mobile nav: hamburger */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild className="sm:hidden">
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem className="gap-2 bg-secondary" disabled>
+                  <LayoutGrid className="h-4 w-4" />Gallery
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/cards" className="flex items-center gap-2">
+                    <Table2 className="h-4 w-4" />Table
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/sells" className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />Sells
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Desktop nav */}
+            <nav className="hidden sm:flex items-center gap-1">
               <Button variant="ghost" size="sm" className="gap-2 bg-secondary text-foreground">
                 <LayoutGrid className="h-4 w-4" />Gallery
               </Button>
@@ -216,7 +247,7 @@ export default function Home() {
               <span className="hidden sm:inline">Batch Scan</span>
             </Button>
             <Button onClick={() => setIsFormOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" />Add Card
+              <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add Card</span>
             </Button>
           </div>
         </div>

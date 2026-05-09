@@ -8,9 +8,15 @@ import { CollectionTable } from '@/components/collection-table';
 import { CardForm } from '@/components/card-form';
 import { BatchScanModal } from '@/components/batch-scan-modal';
 import { Button } from '@/components/ui/button';
-import { Plus, ScanLine, LayoutGrid, Table2, DollarSign } from 'lucide-react';
+import { Plus, ScanLine, LayoutGrid, Table2, DollarSign, Menu } from 'lucide-react';
 import Link from 'next/link';
 import type { Card } from '@/lib/types';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export default function CardsPage() {
   const { cards, isLoaded, addCard, updateCard, deleteCard } = useCollection();
@@ -84,11 +90,35 @@ export default function CardsPage() {
                 My One Piece TCG
               </h1>
             </div>
-            <nav className="flex items-center gap-1">
+            {/* Mobile nav: hamburger */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild className="sm:hidden">
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem asChild>
+                  <Link href="/" className="flex items-center gap-2">
+                    <LayoutGrid className="h-4 w-4" />Gallery
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2 bg-secondary" disabled>
+                  <Table2 className="h-4 w-4" />Table
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/sells" className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />Sells
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Desktop nav */}
+            <nav className="hidden sm:flex items-center gap-1">
               <Link href="/">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
-                  <LayoutGrid className="h-4 w-4" />
-                  Gallery
+                  <LayoutGrid className="h-4 w-4" />Gallery
                 </Button>
               </Link>
               <Button variant="ghost" size="sm" className="gap-2 text-foreground bg-secondary">
@@ -107,8 +137,7 @@ export default function CardsPage() {
               <span className="hidden sm:inline">Batch Scan</span>
             </Button>
             <Button onClick={() => setIsFormOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Add Card
+              <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add Card</span>
             </Button>
           </div>
         </div>
