@@ -8,7 +8,7 @@ import { CollectionTable } from '@/components/collection-table';
 import { CardForm } from '@/components/card-form';
 import { BatchScanModal } from '@/components/batch-scan-modal';
 import { Button } from '@/components/ui/button';
-import { Plus, ScanLine, LayoutGrid, Table2, DollarSign, Menu } from 'lucide-react';
+import { Plus, ScanLine, LayoutGrid, Table2, DollarSign, Layers, Menu } from 'lucide-react';
 import Link from 'next/link';
 import type { Card } from '@/lib/types';
 import {
@@ -111,6 +111,11 @@ export default function CardsPage() {
                     <DollarSign className="h-4 w-4" />Sells
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/decks" className="flex items-center gap-2">
+                    <Layers className="h-4 w-4" />Decks
+                  </Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -127,6 +132,11 @@ export default function CardsPage() {
               <Link href="/sells">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
                   <DollarSign className="h-4 w-4" />Sells
+                </Button>
+              </Link>
+              <Link href="/decks">
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+                  <Layers className="h-4 w-4" />Decks
                 </Button>
               </Link>
             </nav>
