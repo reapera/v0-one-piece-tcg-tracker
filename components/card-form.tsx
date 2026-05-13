@@ -210,13 +210,29 @@ export function CardForm({
   };
 
   const handleScanCard = async () => {
-    if (!scanImageData) return;
     setScanStatus('scanning');
     try {
+      let base64: string;
+      let mimeType: string;
+      if (scanImageData) {
+        base64 = scanImageData.base64;
+        mimeType = scanImageData.mimeType;
+      } else if (formData.imageUrl) {
+        const blob = await fetch(formData.imageUrl).then((r) => r.blob());
+        base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        mimeType = blob.type || 'image/jpeg';
+      } else {
+        return;
+      }
       const res = await fetch('/api/scan-card', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: scanImageData.base64, mimeType: scanImageData.mimeType }),
+        body: JSON.stringify({ image: base64, mimeType }),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
@@ -383,7 +399,7 @@ export function CardForm({
                       Uploading...
                     </p>
                   )}
-                  {!isUploading && scanImageData && scanStatus !== 'scanning' && (
+                  {!isUploading && formData.imageUrl && scanStatus !== 'scanning' && (
                     <Button
                       type="button"
                       size="sm"
@@ -392,7 +408,7 @@ export function CardForm({
                       onClick={handleScanCard}
                     >
                       <ScanLine className="h-4 w-4" />
-                      Scan Card
+                      {scanStatus === 'success' ? 'Rescan' : 'Scan Card'}
                     </Button>
                   )}
                   {scanStatus === 'scanning' && (
