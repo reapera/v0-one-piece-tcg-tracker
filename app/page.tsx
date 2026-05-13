@@ -425,6 +425,10 @@ export default function Home() {
           replaceCard(updatedCard);
           setSelectedCard(updatedCard);
         }}
+        onRescan={(id, updates) => {
+          updateCard(id, updates);
+          if (selectedCard) setSelectedCard({ ...selectedCard, ...updates });
+        }}
       />
 
       <CardForm
