@@ -185,6 +185,48 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell,
     });
   }
 
+  async function runScan(base64: string, mimeType: string) {
+    if (!card || !onRescan) return;
+    const res = await fetch('/api/scan-card', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64, mimeType }),
+    });
+    if (!res.ok) throw new Error('Scan failed');
+    const result = await res.json();
+    const updates: Partial<Omit<Card, 'id'>> = {};
+    if (result.cardName) updates.cardName = result.cardName;
+    if (result.cardNumber) updates.cardNumber = result.cardNumber;
+    if (result.category && CARD_CATEGORIES.includes(result.category)) updates.category = result.category;
+    if (result.rarity && CARD_RARITIES.includes(result.rarity)) updates.rarity = result.rarity;
+    if (result.language === 'EN' || result.language === 'JP') updates.language = result.language;
+    if (result.color) {
+      const raw = Array.isArray(result.color) ? result.color : [result.color];
+      const valid = raw.filter((c: string) => CARD_COLORS.includes(c as typeof CARD_COLORS[number]));
+      if (valid.length > 0) updates.colors = valid;
+    }
+    onRescan(card.id, updates);
+  }
+
+  async function handleRescanSaved() {
+    if (!card?.imageUrl || !onRescan) return;
+    setIsRescanning(true);
+    try {
+      const blob = await fetch(card.imageUrl).then((r) => r.blob());
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      await runScan(base64, blob.type || 'image/jpeg');
+    } catch {
+      // scan failed silently — user can retry
+    } finally {
+      setIsRescanning(false);
+    }
+  }
+
   async function handleRescanFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !card || !onRescan) return;
@@ -197,26 +239,7 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell,
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      const res = await fetch('/api/scan-card', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64, mimeType: file.type }),
-      });
-      if (!res.ok) throw new Error('Scan failed');
-      const result = await res.json();
-
-      const updates: Partial<Omit<Card, 'id'>> = {};
-      if (result.cardName) updates.cardName = result.cardName;
-      if (result.cardNumber) updates.cardNumber = result.cardNumber;
-      if (result.category && CARD_CATEGORIES.includes(result.category)) updates.category = result.category;
-      if (result.rarity && CARD_RARITIES.includes(result.rarity)) updates.rarity = result.rarity;
-      if (result.language === 'EN' || result.language === 'JP') updates.language = result.language;
-      if (result.color) {
-        const raw = Array.isArray(result.color) ? result.color : [result.color];
-        const valid = raw.filter((c: string) => CARD_COLORS.includes(c as typeof CARD_COLORS[number]));
-        if (valid.length > 0) updates.colors = valid;
-      }
-      onRescan(card.id, updates);
+      await runScan(base64, file.type);
     } catch {
       // scan failed silently — user can retry
     } finally {
@@ -329,10 +352,10 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell,
               </Button>
               <Button
                 variant="outline"
-                onClick={() => rescanInputRef.current?.click()}
+                onClick={card.imageUrl ? handleRescanSaved : () => rescanInputRef.current?.click()}
                 disabled={isRescanning}
                 className="gap-2"
-                title="Rescan this card with AI"
+                title={card.imageUrl ? 'Rescan saved photo with AI' : 'Upload a photo to scan'}
               >
                 {isRescanning
                   ? <Loader2 className="h-4 w-4 animate-spin" />
