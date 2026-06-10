@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
     if (!geminiKey) throw new Error('GEMINI_API_KEY not configured');
 
     const genAI = new GoogleGenerativeAI(geminiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
 
     const result = await model.generateContent([
       SCAN_PROMPT,
