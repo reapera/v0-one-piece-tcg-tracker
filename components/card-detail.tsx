@@ -19,10 +19,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ColorBadge } from '@/components/color-badge';
-import { Pencil, Trash2, ImageIcon, ZoomIn, ZoomOut, DollarSign } from 'lucide-react';
+import { Pencil, Trash2, ImageIcon, ZoomIn, ZoomOut, DollarSign, ScanLine, Loader2 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import type { Card } from '@/lib/types';
-import { RARITY_LABELS } from '@/lib/types';
+import { RARITY_LABELS, CARD_CATEGORIES, CARD_RARITIES, CARD_COLORS } from '@/lib/types';
 import { SellDialog } from '@/components/sell-dialog';
 
 const CONDITION_COLOR: Record<string, string> = {
@@ -40,6 +40,7 @@ interface CardDetailProps {
   onEdit: (card: Card) => void;
   onDelete: (id: string) => void;
   onSell?: (updatedCard: Card) => void;
+  onRescan?: (id: string, updates: Partial<Omit<Card, 'id'>>) => void;
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -51,9 +52,11 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell }: CardDetailProps) {
+export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell, onRescan }: CardDetailProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [sellDialogOpen, setSellDialogOpen] = useState(false);
+  const [isRescanning, setIsRescanning] = useState(false);
+  const rescanInputRef = useRef<HTMLInputElement>(null);
 
   // Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -182,6 +185,45 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell 
     });
   }
 
+  async function handleRescanFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !card || !onRescan) return;
+    e.target.value = '';
+    setIsRescanning(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch('/api/scan-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64, mimeType: file.type }),
+      });
+      if (!res.ok) throw new Error('Scan failed');
+      const result = await res.json();
+
+      const updates: Partial<Omit<Card, 'id'>> = {};
+      if (result.cardName) updates.cardName = result.cardName;
+      if (result.cardNumber) updates.cardNumber = result.cardNumber;
+      if (result.category && CARD_CATEGORIES.includes(result.category)) updates.category = result.category;
+      if (result.rarity && CARD_RARITIES.includes(result.rarity)) updates.rarity = result.rarity;
+      if (result.language === 'EN' || result.language === 'JP') updates.language = result.language;
+      if (result.color) {
+        const raw = Array.isArray(result.color) ? result.color : [result.color];
+        const valid = raw.filter((c: string) => CARD_COLORS.includes(c as typeof CARD_COLORS[number]));
+        if (valid.length > 0) updates.colors = valid;
+      }
+      onRescan(card.id, updates);
+    } catch {
+      // scan failed silently — user can retry
+    } finally {
+      setIsRescanning(false);
+    }
+  }
+
   if (!card) return null;
 
   const totalValue = card.buyPrice * card.quantity;
@@ -267,23 +309,62 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell 
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setSellDialogOpen(true)}
-              disabled={card.quantity === 0}
-              className="gap-2 mr-auto"
-              title={card.quantity === 0 ? 'No stock to sell' : undefined}
-            >
-              <DollarSign className="h-4 w-4" />Sell
-            </Button>
-            <Button variant="outline" onClick={handleEdit} className="gap-2">
-              <Pencil className="h-4 w-4" />Edit
-            </Button>
-            <Button variant="destructive" onClick={() => setConfirmDelete(true)} className="gap-2">
-              <Trash2 className="h-4 w-4" />Delete
-            </Button>
-          </div>
+          {onRescan ? (
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <input
+                ref={rescanInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleRescanFile}
+              />
+              <Button
+                variant="outline"
+                onClick={() => setSellDialogOpen(true)}
+                disabled={card.quantity === 0}
+                className="gap-2"
+                title={card.quantity === 0 ? 'No stock to sell' : undefined}
+              >
+                <DollarSign className="h-4 w-4" />Sell
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => rescanInputRef.current?.click()}
+                disabled={isRescanning}
+                className="gap-2"
+                title="Rescan this card with AI"
+              >
+                {isRescanning
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <ScanLine className="h-4 w-4" />}
+                Rescan
+              </Button>
+              <Button variant="outline" onClick={handleEdit} className="gap-2">
+                <Pencil className="h-4 w-4" />Edit
+              </Button>
+              <Button variant="destructive" onClick={() => setConfirmDelete(true)} className="gap-2">
+                <Trash2 className="h-4 w-4" />Delete
+              </Button>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setSellDialogOpen(true)}
+                disabled={card.quantity === 0}
+                className="gap-2 mr-auto"
+                title={card.quantity === 0 ? 'No stock to sell' : undefined}
+              >
+                <DollarSign className="h-4 w-4" />Sell
+              </Button>
+              <Button variant="outline" onClick={handleEdit} className="gap-2">
+                <Pencil className="h-4 w-4" />Edit
+              </Button>
+              <Button variant="destructive" onClick={() => setConfirmDelete(true)} className="gap-2">
+                <Trash2 className="h-4 w-4" />Delete
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
