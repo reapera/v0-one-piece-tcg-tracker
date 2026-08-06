@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useDecks } from '@/hooks/use-decks';
+import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
+import { AuthButton } from '@/components/auth-button';
 import {
   LayoutGrid,
   Table2,
@@ -12,6 +14,7 @@ import {
   Trash2,
   Menu,
   ChevronRight,
+  LogIn,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -90,6 +93,7 @@ function NewDeckDialog({
 }
 
 export default function DecksPage() {
+  const { user } = useAuth();
   const { decks, isLoaded, createDeck, deleteDeck } = useDecks();
   const [newDeckOpen, setNewDeckOpen] = useState(false);
   const router = useRouter();
@@ -119,7 +123,6 @@ export default function DecksPage() {
               <h1 className="hidden text-xl font-bold text-foreground sm:block">My One Piece TCG</h1>
             </div>
 
-            {/* Mobile nav */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild className="sm:hidden">
                 <Button variant="ghost" size="icon">
@@ -148,7 +151,6 @@ export default function DecksPage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Desktop nav */}
             <nav className="hidden sm:flex items-center gap-1">
               <Link href="/">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
@@ -171,15 +173,29 @@ export default function DecksPage() {
             </nav>
           </div>
 
-          <Button onClick={() => setNewDeckOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">New Deck</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            {user && (
+              <Button onClick={() => setNewDeckOpen(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">New Deck</span>
+              </Button>
+            )}
+            <AuthButton />
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {decks.length === 0 ? (
+        {!user ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-24 text-center">
+            <LogIn className="mb-4 h-12 w-12 text-muted-foreground/40" />
+            <p className="text-lg font-medium text-foreground">Sign in to manage your decks</p>
+            <p className="mt-1 text-sm text-muted-foreground">Decks are private to your account</p>
+            <Link href="/login" className="mt-6">
+              <Button className="gap-2"><LogIn className="h-4 w-4" />Sign In</Button>
+            </Link>
+          </div>
+        ) : decks.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-24 text-center">
             <Layers className="mb-4 h-12 w-12 text-muted-foreground/30" />
             <p className="text-lg font-medium text-foreground">No decks yet</p>

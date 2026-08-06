@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Plus, ScanLine, LayoutGrid, Table2, DollarSign, Layers, Menu } from 'lucide-react';
 import Link from 'next/link';
 import type { Card } from '@/lib/types';
+import { AuthButton } from '@/components/auth-button';
+import { useAuth } from '@/hooks/use-auth';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export default function CardsPage() {
+  const { user } = useAuth();
   const { cards, isLoaded, addCard, updateCard, deleteCard } = useCollection();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isBatchScanOpen, setIsBatchScanOpen] = useState(false);
@@ -90,7 +93,6 @@ export default function CardsPage() {
                 My One Piece TCG
               </h1>
             </div>
-            {/* Mobile nav: hamburger */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild className="sm:hidden">
                 <Button variant="ghost" size="icon">
@@ -119,7 +121,6 @@ export default function CardsPage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Desktop nav */}
             <nav className="hidden sm:flex items-center gap-1">
               <Link href="/">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
@@ -142,13 +143,18 @@ export default function CardsPage() {
             </nav>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setIsBatchScanOpen(true)} className="gap-2">
-              <ScanLine className="h-4 w-4" />
-              <span className="hidden sm:inline">Batch Scan</span>
-            </Button>
-            <Button onClick={() => setIsFormOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add Card</span>
-            </Button>
+            {user && (
+              <>
+                <Button variant="outline" onClick={() => setIsBatchScanOpen(true)} className="gap-2">
+                  <ScanLine className="h-4 w-4" />
+                  <span className="hidden sm:inline">Batch Scan</span>
+                </Button>
+                <Button onClick={() => setIsFormOpen(true)} className="gap-2">
+                  <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add Card</span>
+                </Button>
+              </>
+            )}
+            <AuthButton />
           </div>
         </div>
       </header>
@@ -166,7 +172,11 @@ export default function CardsPage() {
               {' '}cards
             </p>
           )}
-          <CollectionTable cards={filteredCards} onEdit={handleEditCard} onDelete={deleteCard} />
+          <CollectionTable
+            cards={filteredCards}
+            onEdit={user ? handleEditCard : undefined}
+            onDelete={user ? deleteCard : undefined}
+          />
         </div>
       </main>
 

@@ -16,6 +16,8 @@ import { Plus, ScanLine, LayoutGrid, Table2, Search, ImageIcon, TrendingUp, Laye
 import Link from 'next/link';
 import { CardDetail } from '@/components/card-detail';
 import { BatchScanModal } from '@/components/batch-scan-modal';
+import { AuthButton } from '@/components/auth-button';
+import { useAuth } from '@/hooks/use-auth';
 import type { Card } from '@/lib/types';
 import { CARD_RARITIES, CARD_CONDITIONS, RARITY_LABELS } from '@/lib/types';
 import {
@@ -31,14 +33,6 @@ const CONDITION_SHORT: Record<string, string> = {
   'Moderately Played': 'MP',
   'Heavily Played': 'HP',
   'Damaged': 'D',
-};
-
-const CONDITION_COLOR: Record<string, string> = {
-  'Near Mint': 'bg-green-500/20 text-green-400 border-green-500/30',
-  'Lightly Played': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  'Moderately Played': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  'Heavily Played': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-  'Damaged': 'bg-red-500/20 text-red-400 border-red-500/30',
 };
 
 const RARITY_SORT: Record<string, number> = {
@@ -91,9 +85,6 @@ function CardTile({ card, onClick }: { card: Card; onClick: () => void }) {
             <ImageIcon className="h-10 w-10 text-muted-foreground/40" />
           </div>
         )}
-        <div className="absolute left-2 top-2 hidden rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
-          One Piece
-        </div>
         <div className="absolute right-2 top-2 rounded-md bg-primary/80 px-1.5 py-0.5 text-xs font-bold text-primary-foreground backdrop-blur-sm">
           {card.rarity}
         </div>
@@ -118,6 +109,7 @@ function CardTile({ card, onClick }: { card: Card; onClick: () => void }) {
 }
 
 export default function Home() {
+  const { user } = useAuth();
   const { cards, isLoaded, addCard, updateCard, deleteCard, replaceCard } = useCollection();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isBatchScanOpen, setIsBatchScanOpen] = useState(false);
@@ -190,7 +182,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-6">
@@ -200,7 +191,6 @@ export default function Home() {
               </div>
               <h1 className="hidden text-xl font-bold text-foreground sm:block">My One Piece TCG</h1>
             </div>
-            {/* Mobile nav: hamburger */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild className="sm:hidden">
                 <Button variant="ghost" size="icon">
@@ -229,7 +219,6 @@ export default function Home() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Desktop nav */}
             <nav className="hidden sm:flex items-center gap-1">
               <Button variant="ghost" size="sm" className="gap-2 bg-secondary text-foreground">
                 <LayoutGrid className="h-4 w-4" />Gallery
@@ -252,23 +241,26 @@ export default function Home() {
             </nav>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setIsBatchScanOpen(true)} className="gap-2">
-              <ScanLine className="h-4 w-4" />
-              <span className="hidden sm:inline">Batch Scan</span>
-            </Button>
-            <Button onClick={() => setIsFormOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add Card</span>
-            </Button>
+            {user && (
+              <>
+                <Button variant="outline" onClick={() => setIsBatchScanOpen(true)} className="gap-2">
+                  <ScanLine className="h-4 w-4" />
+                  <span className="hidden sm:inline">Batch Scan</span>
+                </Button>
+                <Button onClick={() => setIsFormOpen(true)} className="gap-2">
+                  <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add Card</span>
+                </Button>
+              </>
+            )}
+            <AuthButton />
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
 
-        {/* ── Portfolio Dashboard ── */}
         {cards.length > 0 && (
           <div className="mb-6 overflow-hidden rounded-2xl border border-border bg-card">
-            {/* Hero row — total value */}
             <div className="flex flex-col gap-1 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-6 py-6 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -286,7 +278,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Stats row */}
             <div className="grid grid-cols-2 divide-border/50 border-t border-border/50 sm:grid-cols-4 sm:divide-x">
               <StatTile
                 icon={<BarChart3 className="h-3.5 w-3.5" />}
@@ -313,7 +304,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── Search + Filters + Sort ── */}
         <div className="mb-6 flex flex-col gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -325,7 +315,6 @@ export default function Home() {
             />
           </div>
           <div className="flex flex-wrap gap-2">
-            {/* Set filter */}
             <Select value={setFilter} onValueChange={setSetFilter}>
               <SelectTrigger className="w-28">
                 <SelectValue placeholder="Set" />
@@ -360,7 +349,6 @@ export default function Home() {
               </SelectContent>
             </Select>
 
-            {/* Sort */}
             <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger className="ml-auto w-44 gap-1">
                 <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -380,7 +368,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Results count */}
         {cards.length > 0 && (
           <p className="mb-4 text-sm text-muted-foreground">
             Showing <span className="font-medium text-foreground">{filteredCards.length}</span>
@@ -388,7 +375,6 @@ export default function Home() {
           </p>
         )}
 
-        {/* ── Card Grid ── */}
         {filteredCards.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-24 text-center">
             <ImageIcon className="mb-4 h-12 w-12 text-muted-foreground/30" />
@@ -400,7 +386,7 @@ export default function Home() {
                 ? 'Add your first card to start tracking your collection'
                 : 'Try adjusting your search or filters'}
             </p>
-            {cards.length === 0 && (
+            {cards.length === 0 && user && (
               <Button onClick={() => setIsFormOpen(true)} className="mt-6 gap-2">
                 <Plus className="h-4 w-4" />Add Card
               </Button>
@@ -419,16 +405,12 @@ export default function Home() {
         card={selectedCard}
         open={!!selectedCard}
         onOpenChange={(open) => { if (!open) setSelectedCard(null); }}
-        onEdit={handleEditCard}
-        onDelete={deleteCard}
-        onSell={(updatedCard) => {
+        onEdit={user ? handleEditCard : undefined}
+        onDelete={user ? deleteCard : undefined}
+        onSell={user ? (updatedCard) => {
           replaceCard(updatedCard);
           setSelectedCard(updatedCard);
-        }}
-        onRescan={(id, updates) => {
-          updateCard(id, updates);
-          if (selectedCard) setSelectedCard({ ...selectedCard, ...updates });
-        }}
+        } : undefined}
       />
 
       <CardForm
