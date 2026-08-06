@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { insertSell, listSells } from '@/lib/sells-service';
 import { rowToCard, type CardRow } from '@/lib/supabase';
+import { getAuthContext } from '@/lib/supabase-server';
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(url, key);
-}
-
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const sells = await listSells();
+    const ctx = await getAuthContext(req);
+    if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const sells = await listSells(ctx.client);
     return NextResponse.json({ sells });
   } catch (err) {
     return NextResponse.json(
@@ -23,16 +19,20 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const ctx = await getAuthContext(req);
+    if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { cardId, quantitySold, sellPrice, notes } = await req.json();
 
     if (!cardId || !quantitySold || sellPrice == null) {
-      return NextResponse.json({ error: 'cardId, quantitySold, and sellPrice are required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'cardId, quantitySold, and sellPrice are required' },
+        { status: 400 },
+      );
     }
 
-    const supabase = getSupabase();
-
-    // Fetch card for validation and buy_price snapshot
-    const { data: cardRow, error: cardErr } = await supabase
+    // Fetch card using auth client (RLS ensures it belongs to this user)
+    const { data: cardRow, error: cardErr } = await ctx.client
       .from('cards')
       .select('*')
       .eq('id', cardId)
@@ -51,20 +51,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Record the sale
-    const sell = await insertSell({
-      cardId: card.id,
-      cardNumber: card.cardNumber,
-      cardName: card.cardName,
-      quantitySold,
-      sellPrice,
-      buyPriceSnapshot: card.buyPrice,
-      notes,
-    });
+    const sell = await insertSell(
+      {
+        cardId: card.id,
+        cardNumber: card.cardNumber,
+        cardName: card.cardName,
+        quantitySold,
+        sellPrice,
+        buyPriceSnapshot: card.buyPrice,
+        notes,
+      },
+      ctx.userId,
+      ctx.client,
+    );
 
-    // Reduce card quantity (keep card even at 0)
     const newQty = card.quantity - quantitySold;
-    const { data: updatedRow, error: updateErr } = await supabase
+    const { data: updatedRow, error: updateErr } = await ctx.client
       .from('cards')
       .update({ quantity: newQty })
       .eq('id', cardId)

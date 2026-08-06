@@ -37,8 +37,8 @@ interface CardDetailProps {
   card: Card | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onEdit: (card: Card) => void;
-  onDelete: (id: string) => void;
+  onEdit?: (card: Card) => void;
+  onDelete?: (id: string) => void;
   onSell?: (updatedCard: Card) => void;
 }
 
@@ -55,7 +55,6 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [sellDialogOpen, setSellDialogOpen] = useState(false);
 
-  // Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
@@ -83,12 +82,10 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell 
     setIsDragging(false);
   }
 
-  // Reset if outer dialog closes
   useEffect(() => {
     if (!open) closeLightbox();
   }, [open]);
 
-  // Non-passive wheel + touch listeners
   useEffect(() => {
     const el = interactionRef.current;
     if (!el || !lightboxOpen) return;
@@ -187,19 +184,18 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell 
   const totalValue = card.buyPrice * card.quantity;
 
   const handleDelete = () => {
-    onDelete(card.id);
+    onDelete?.(card.id);
     setConfirmDelete(false);
     onOpenChange(false);
   };
 
   const handleEdit = () => {
     onOpenChange(false);
-    onEdit(card);
+    onEdit?.(card);
   };
 
   return (
     <>
-      {/* Card detail dialog */}
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="flex max-h-[100dvh] w-full flex-col overflow-y-auto sm:max-h-[90vh] sm:max-w-2xl">
           <DialogHeader>
@@ -267,27 +263,34 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell 
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setSellDialogOpen(true)}
-              disabled={card.quantity === 0}
-              className="gap-2 mr-auto"
-              title={card.quantity === 0 ? 'No stock to sell' : undefined}
-            >
-              <DollarSign className="h-4 w-4" />Sell
-            </Button>
-            <Button variant="outline" onClick={handleEdit} className="gap-2">
-              <Pencil className="h-4 w-4" />Edit
-            </Button>
-            <Button variant="destructive" onClick={() => setConfirmDelete(true)} className="gap-2">
-              <Trash2 className="h-4 w-4" />Delete
-            </Button>
-          </div>
+          {(onSell || onEdit || onDelete) && (
+            <div className="flex justify-end gap-2 pt-2">
+              {onSell && (
+                <Button
+                  variant="outline"
+                  onClick={() => setSellDialogOpen(true)}
+                  disabled={card.quantity === 0}
+                  className="gap-2 mr-auto"
+                  title={card.quantity === 0 ? 'No stock to sell' : undefined}
+                >
+                  <DollarSign className="h-4 w-4" />Sell
+                </Button>
+              )}
+              {onEdit && (
+                <Button variant="outline" onClick={handleEdit} className="gap-2">
+                  <Pencil className="h-4 w-4" />Edit
+                </Button>
+              )}
+              {onDelete && (
+                <Button variant="destructive" onClick={() => setConfirmDelete(true)} className="gap-2">
+                  <Trash2 className="h-4 w-4" />Delete
+                </Button>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation */}
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -305,7 +308,6 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell 
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Sell dialog */}
       <SellDialog
         card={card}
         open={sellDialogOpen}
@@ -316,14 +318,11 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell 
         }}
       />
 
-      {/* Lightbox — nested Radix Dialog so Radix manages the layer stack:
-          Escape closes only the lightbox, not the card-detail dialog underneath */}
       {card.imageUrl && (
         <Dialog open={lightboxOpen} onOpenChange={(v) => { if (!v) closeLightbox(); }}>
           <DialogContent
             className="fixed inset-0 left-0 top-0 m-0 flex h-screen w-screen max-w-none translate-x-0 translate-y-0 flex-col items-stretch justify-stretch overflow-hidden rounded-none border-0 bg-black p-0 select-none [&>button:last-child]:z-20 [&>button:last-child]:text-white [&>button:last-child]:opacity-80 [&>button:last-child]:hover:opacity-100 [&>button:last-child]:focus:ring-white"
           >
-            {/* Interaction layer: covers full area, backdrop click closes */}
             <div
               ref={interactionRef}
               className="absolute inset-0 flex items-center justify-center"
@@ -352,7 +351,6 @@ export function CardDetail({ card, open, onOpenChange, onEdit, onDelete, onSell 
               </div>
             </div>
 
-            {/* Zoom controls — above the interaction layer */}
             <div className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 flex items-center gap-3 rounded-full bg-white/10 px-4 py-2 backdrop-blur-sm">
               <button
                 className="text-white transition-colors hover:text-white/60 disabled:opacity-30"

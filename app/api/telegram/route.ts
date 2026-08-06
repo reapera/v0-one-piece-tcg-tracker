@@ -174,7 +174,9 @@ export async function POST(req: NextRequest) {
     };
 
     // 7. Insert into DB
-    const saved = await insertCard(card);
+    // TELEGRAM_USER_ID: set this to your Supabase user UUID so Telegram bot cards are owned by your account
+    const telegramUserId = process.env.TELEGRAM_USER_ID ?? '';
+    const saved = await insertCard(card, telegramUserId);
 
     const reply = [
       `✅ Card added to collection!`,

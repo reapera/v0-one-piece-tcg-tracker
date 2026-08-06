@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDeckCards, upsertDeckCards } from '@/lib/decks-service';
 import { lookupCard } from '@/lib/optcg-api';
+import { getAuthContext } from '@/lib/supabase-server';
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const ctx = await getAuthContext(req);
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { id } = await params;
   try {
-    const cards = await getDeckCards(id);
+    const cards = await getDeckCards(id, ctx.client);
     return NextResponse.json({ cards });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
@@ -14,11 +17,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 // PUT body: { lines: string[] }  e.g. ["4xOP12-013", "1xOP12-020"]
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const ctx = await getAuthContext(req);
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { id } = await params;
   try {
     const { lines } = await req.json() as { lines: string[] };
 
-    // Parse lines like "4xOP12-013" or "4 OP12-013"
     const parsed: { cardNumber: string; quantity: number }[] = [];
     for (const raw of lines ?? []) {
       const line = raw.trim();
@@ -28,7 +32,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       parsed.push({ cardNumber: m[2].toUpperCase(), quantity: parseInt(m[1], 10) });
     }
 
-    // Lookup metadata for each card in parallel (best-effort)
     const enriched = await Promise.all(
       parsed.map(async ({ cardNumber, quantity }) => {
         const meta = await lookupCard(cardNumber);
@@ -44,8 +47,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }),
     );
 
-    await upsertDeckCards(id, enriched);
-    const cards = await getDeckCards(id);
+    await upsertDeckCards(id, enriched, ctx.client);
+    const cards = await getDeckCards(id, ctx.client);
     return NextResponse.json({ cards });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });

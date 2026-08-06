@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 export interface Deck {
   id: string;
@@ -43,7 +43,7 @@ interface DeckCardRow {
   card_type: string | null;
 }
 
-function getSupabase() {
+function getSupabase(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) throw new Error('Supabase env vars not configured');
@@ -76,8 +76,7 @@ function rowToDeckCard(row: DeckCardRow, owned = 0): DeckCard {
   };
 }
 
-export async function listDecks(): Promise<Deck[]> {
-  const supabase = getSupabase();
+export async function listDecks(supabase: SupabaseClient = getSupabase()): Promise<Deck[]> {
   const { data, error } = await supabase
     .from('decks')
     .select('*, deck_cards(count)')
@@ -88,19 +87,22 @@ export async function listDecks(): Promise<Deck[]> {
   );
 }
 
-export async function createDeck(name: string, description?: string): Promise<Deck> {
-  const supabase = getSupabase();
+export async function createDeck(
+  name: string,
+  userId: string,
+  description?: string,
+  supabase: SupabaseClient = getSupabase(),
+): Promise<Deck> {
   const { data, error } = await supabase
     .from('decks')
-    .insert({ name, description: description ?? null })
+    .insert({ name, description: description ?? null, user_id: userId })
     .select()
     .single();
   if (error) throw new Error(error.message);
   return rowToDeck(data as DeckRow);
 }
 
-export async function getDeck(id: string): Promise<Deck | null> {
-  const supabase = getSupabase();
+export async function getDeck(id: string, supabase: SupabaseClient = getSupabase()): Promise<Deck | null> {
   const { data, error } = await supabase
     .from('decks')
     .select('*')
@@ -110,8 +112,11 @@ export async function getDeck(id: string): Promise<Deck | null> {
   return rowToDeck(data as DeckRow);
 }
 
-export async function updateDeck(id: string, updates: { name?: string; description?: string }): Promise<Deck> {
-  const supabase = getSupabase();
+export async function updateDeck(
+  id: string,
+  updates: { name?: string; description?: string },
+  supabase: SupabaseClient = getSupabase(),
+): Promise<Deck> {
   const { data, error } = await supabase
     .from('decks')
     .update(updates)
@@ -122,14 +127,12 @@ export async function updateDeck(id: string, updates: { name?: string; descripti
   return rowToDeck(data as DeckRow);
 }
 
-export async function deleteDeck(id: string): Promise<void> {
-  const supabase = getSupabase();
+export async function deleteDeck(id: string, supabase: SupabaseClient = getSupabase()): Promise<void> {
   const { error } = await supabase.from('decks').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
-export async function getDeckCards(deckId: string): Promise<DeckCard[]> {
-  const supabase = getSupabase();
+export async function getDeckCards(deckId: string, supabase: SupabaseClient = getSupabase()): Promise<DeckCard[]> {
 
   const { data: deckCardRows, error } = await supabase
     .from('deck_cards')
@@ -139,7 +142,8 @@ export async function getDeckCards(deckId: string): Promise<DeckCard[]> {
 
   const cardNumbers = (deckCardRows ?? []).map((r: DeckCardRow) => r.card_number);
 
-  const { data: collectionRows } = await supabase
+  const anonClient = getSupabase();
+  const { data: collectionRows } = await anonClient
     .from('cards')
     .select('card_number, quantity')
     .in('card_number', cardNumbers.length ? cardNumbers : ['__none__']);
@@ -165,8 +169,8 @@ export async function upsertDeckCards(
     cardColor: string | null;
     cardType: string | null;
   }>,
+  supabase: SupabaseClient = getSupabase(),
 ): Promise<void> {
-  const supabase = getSupabase();
 
   if (cards.length === 0) {
     await supabase.from('deck_cards').delete().eq('deck_id', deckId);

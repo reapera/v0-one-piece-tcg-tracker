@@ -2,7 +2,9 @@
 
 import { useMemo } from 'react';
 import { useSells } from '@/hooks/use-sells';
+import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
+import { AuthButton } from '@/components/auth-button';
 import {
   LayoutGrid,
   Table2,
@@ -13,6 +15,7 @@ import {
   BarChart3,
   Layers,
   Menu,
+  LogIn,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -55,6 +58,7 @@ function StatTile({
 }
 
 export default function SellsPage() {
+  const { user, isLoading: authLoading } = useAuth();
   const { sells, isLoaded } = useSells();
 
   const stats = useMemo(() => {
@@ -67,7 +71,7 @@ export default function SellsPage() {
 
   const isGain = stats.profit >= 0;
 
-  if (!isLoaded) {
+  if (!isLoaded || authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -86,7 +90,6 @@ export default function SellsPage() {
               </div>
               <h1 className="hidden text-xl font-bold text-foreground sm:block">My One Piece TCG</h1>
             </div>
-            {/* Mobile nav: hamburger */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild className="sm:hidden">
                 <Button variant="ghost" size="icon">
@@ -115,7 +118,6 @@ export default function SellsPage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Desktop nav */}
             <nav className="hidden sm:flex items-center gap-1">
               <Link href="/">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
@@ -137,13 +139,23 @@ export default function SellsPage() {
               </Link>
             </nav>
           </div>
+          <AuthButton />
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {sells.length > 0 && (
+        {!user && (
+          <div className="mb-6 flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
+            <LogIn className="mb-4 h-10 w-10 text-muted-foreground/40" />
+            <p className="text-lg font-medium text-foreground">Sign in to view your sells</p>
+            <p className="mt-1 text-sm text-muted-foreground">Sell history is private to your account</p>
+            <Link href="/login" className="mt-6">
+              <Button className="gap-2"><LogIn className="h-4 w-4" />Sign In</Button>
+            </Link>
+          </div>
+        )}
+        {user && sells.length > 0 && (
           <div className="mb-6 overflow-hidden rounded-2xl border border-border bg-card">
-            {/* Hero row */}
             <div
               className={`flex flex-col gap-1 px-6 py-6 sm:flex-row sm:items-end sm:justify-between ${
                 isGain
@@ -180,7 +192,6 @@ export default function SellsPage() {
               </div>
             </div>
 
-            {/* Stats row */}
             <div className="grid grid-cols-2 divide-border/50 border-t border-border/50 sm:grid-cols-4 sm:divide-x">
               <StatTile
                 icon={<Receipt className="h-3.5 w-3.5" />}
@@ -213,7 +224,7 @@ export default function SellsPage() {
           </div>
         )}
 
-        {sells.length === 0 ? (
+        {user && sells.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-24 text-center">
             <DollarSign className="mb-4 h-12 w-12 text-muted-foreground/30" />
             <p className="text-lg font-medium text-foreground">No sells yet</p>
@@ -221,7 +232,7 @@ export default function SellsPage() {
               Sell cards from your collection to see your P&amp;L history here
             </p>
           </div>
-        ) : (
+        ) : user ? (
           <div className="overflow-hidden rounded-xl border border-border">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -290,7 +301,7 @@ export default function SellsPage() {
               </table>
             </div>
           </div>
-        )}
+        ) : null}
       </main>
     </div>
   );
