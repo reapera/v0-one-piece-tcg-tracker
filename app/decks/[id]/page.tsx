@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 import type { Deck, DeckCard } from '@/lib/decks-service';
 import { Button } from '@/components/ui/button';
 import {
@@ -174,10 +175,18 @@ export default function DeckDetailPage() {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
 
+  const getAuthHeaders = useCallback(async (extra?: Record<string, string>) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const h: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
+    if (session?.access_token) h['Authorization'] = `Bearer ${session.access_token}`;
+    return h;
+  }, []);
+
   const load = useCallback(async () => {
+    const headers = await getAuthHeaders();
     const [deckRes, cardsRes] = await Promise.all([
-      fetch(`/api/decks/${id}`),
-      fetch(`/api/decks/${id}/cards`),
+      fetch(`/api/decks/${id}`, { headers }),
+      fetch(`/api/decks/${id}/cards`, { headers }),
     ]);
     if (!deckRes.ok) { router.push('/decks'); return; }
     const { deck: d } = await deckRes.json();
@@ -185,14 +194,15 @@ export default function DeckDetailPage() {
     setDeck(d);
     setCards(c ?? []);
     setIsLoaded(true);
-  }, [id, router]);
+  }, [id, router, getAuthHeaders]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleImport = async (lines: string[]) => {
+    const headers = await getAuthHeaders();
     const res = await fetch(`/api/decks/${id}/cards`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ lines }),
     });
     if (!res.ok) throw new Error('Import failed');
@@ -202,9 +212,10 @@ export default function DeckDetailPage() {
 
   const handleSaveName = async () => {
     if (!nameInput.trim() || nameInput === deck?.name) { setEditingName(false); return; }
+    const headers = await getAuthHeaders();
     const res = await fetch(`/api/decks/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ name: nameInput.trim() }),
     });
     if (res.ok) {
@@ -216,7 +227,6 @@ export default function DeckDetailPage() {
 
   const exportText = cards.map((c) => `${c.quantity}x${c.cardNumber}`).join('\n');
 
-  // Group by card type
   const groups = cards.reduce<Record<string, DeckCard[]>>((acc, c) => {
     const key = c.cardType ?? 'Other';
     (acc[key] ??= []).push(c);
@@ -257,7 +267,6 @@ export default function DeckDetailPage() {
               <h1 className="hidden text-xl font-bold text-foreground sm:block">My One Piece TCG</h1>
             </div>
 
-            {/* Mobile nav */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild className="sm:hidden">
                 <Button variant="ghost" size="icon">
@@ -286,7 +295,6 @@ export default function DeckDetailPage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Desktop nav */}
             <nav className="hidden sm:flex items-center gap-1">
               <Link href="/">
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
@@ -335,7 +343,6 @@ export default function DeckDetailPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Deck title */}
         <div className="mb-6 flex items-center gap-3">
           {editingName ? (
             <div className="flex items-center gap-2">
@@ -367,7 +374,6 @@ export default function DeckDetailPage() {
           )}
         </div>
 
-        {/* Progress bar */}
         {cards.length > 0 && (
           <div className="mb-6 rounded-xl border border-border bg-card p-4">
             <div className="mb-2 flex items-center justify-between text-sm">
@@ -385,7 +391,6 @@ export default function DeckDetailPage() {
           </div>
         )}
 
-        {/* Card list */}
         {cards.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-24 text-center">
             <Layers className="mb-4 h-12 w-12 text-muted-foreground/30" />
