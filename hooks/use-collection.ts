@@ -2,6 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Card } from '@/lib/types';
+import { supabase } from '@/lib/supabase';
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+  return headers;
+}
 
 export function useCollection() {
   const [cards, setCards] = useState<Card[]>([]);
@@ -10,21 +18,25 @@ export function useCollection() {
   useEffect(() => {
     let cancelled = false;
 
-    fetch('/api/cards')
-      .then((res) => res.json())
-      .then((data: Card[]) => {
-        if (!cancelled) setCards(data);
-      })
-      .catch((err) => console.error('Failed to load collection:', err))
-      .finally(() => { if (!cancelled) setIsLoaded(true); });
+    (async () => {
+      const headers = await authHeaders();
+      fetch('/api/cards', { headers })
+        .then((res) => res.json())
+        .then((data: Card[]) => {
+          if (!cancelled) setCards(data);
+        })
+        .catch((err) => console.error('Failed to load collection:', err))
+        .finally(() => { if (!cancelled) setIsLoaded(true); });
+    })();
 
     return () => { cancelled = true; };
   }, []);
 
   const addCard = useCallback(async (card: Omit<Card, 'id'>) => {
+    const headers = await authHeaders();
     const res = await fetch('/api/cards', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(card),
     });
 
@@ -39,9 +51,10 @@ export function useCollection() {
   }, []);
 
   const updateCard = useCallback(async (id: string, updates: Partial<Omit<Card, 'id'>>) => {
+    const headers = await authHeaders();
     const res = await fetch(`/api/cards/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(updates),
     });
 
@@ -55,7 +68,8 @@ export function useCollection() {
   }, []);
 
   const deleteCard = useCallback(async (id: string) => {
-    const res = await fetch(`/api/cards/${id}`, { method: 'DELETE' });
+    const headers = await authHeaders();
+    const res = await fetch(`/api/cards/${id}`, { method: 'DELETE', headers });
 
     if (!res.ok) {
       console.error('Failed to delete card:', await res.text());

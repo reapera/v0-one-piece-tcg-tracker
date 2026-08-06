@@ -1,16 +1,15 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { rowToCard, cardToRow, partialCardToRow, type CardRow } from './supabase';
 import type { Card } from './types';
 
-function getServerSupabase() {
+function getServerSupabase(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) throw new Error('Supabase env vars not configured');
   return createClient(url, key);
 }
 
-export async function listCards(): Promise<Card[]> {
-  const supabase = getServerSupabase();
+export async function listCards(supabase: SupabaseClient = getServerSupabase()): Promise<Card[]> {
   const { data, error } = await supabase
     .from('cards')
     .select('*')
@@ -19,19 +18,25 @@ export async function listCards(): Promise<Card[]> {
   return (data as CardRow[]).map(rowToCard);
 }
 
-export async function insertCard(card: Omit<Card, 'id'>): Promise<Card> {
-  const supabase = getServerSupabase();
+export async function insertCard(
+  card: Omit<Card, 'id'>,
+  userId: string,
+  supabase: SupabaseClient = getServerSupabase(),
+): Promise<Card> {
   const { data, error } = await supabase
     .from('cards')
-    .insert(cardToRow(card))
+    .insert({ ...cardToRow(card), user_id: userId })
     .select()
     .single();
   if (error) throw new Error(error.message);
   return rowToCard(data as CardRow);
 }
 
-export async function patchCard(id: string, updates: Partial<Omit<Card, 'id'>>): Promise<Card> {
-  const supabase = getServerSupabase();
+export async function patchCard(
+  id: string,
+  updates: Partial<Omit<Card, 'id'>>,
+  supabase: SupabaseClient = getServerSupabase(),
+): Promise<Card> {
   const { data, error } = await supabase
     .from('cards')
     .update(partialCardToRow(updates))
@@ -46,8 +51,8 @@ export async function findDuplicateCard(
   cardNumber: string,
   language: string,
   variant: string,
+  supabase: SupabaseClient = getServerSupabase(),
 ): Promise<Card | null> {
-  const supabase = getServerSupabase();
   const { data, error } = await supabase
     .from('cards')
     .select('*')
@@ -64,15 +69,14 @@ export async function bumpCardQuantity(
   existingQty: number,
   existingPrice: number,
   newPrice: number,
+  supabase: SupabaseClient = getServerSupabase(),
 ): Promise<Card> {
   const newQty = existingQty + 1;
   const avgPrice = Math.round(((existingPrice * existingQty + newPrice) / newQty) * 100) / 100;
-  return patchCard(id, { quantity: newQty, buyPrice: avgPrice });
+  return patchCard(id, { quantity: newQty, buyPrice: avgPrice }, supabase);
 }
 
-export async function removeCard(id: string): Promise<void> {
-  const supabase = getServerSupabase();
-
+export async function removeCard(id: string, supabase: SupabaseClient = getServerSupabase()): Promise<void> {
   // Fetch image URL before deleting so we can clean up Storage
   const { data: row } = await supabase
     .from('cards')

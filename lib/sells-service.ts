@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 export interface Sell {
   id: string;
@@ -24,7 +24,7 @@ interface SellRow {
   notes?: string;
 }
 
-function getServerSupabase() {
+function getServerSupabase(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) throw new Error('Supabase env vars not configured');
@@ -45,8 +45,7 @@ function rowToSell(row: SellRow): Sell {
   };
 }
 
-export async function listSells(): Promise<Sell[]> {
-  const supabase = getServerSupabase();
+export async function listSells(supabase: SupabaseClient = getServerSupabase()): Promise<Sell[]> {
   const { data, error } = await supabase
     .from('sells')
     .select('*')
@@ -55,8 +54,11 @@ export async function listSells(): Promise<Sell[]> {
   return (data as SellRow[]).map(rowToSell);
 }
 
-export async function insertSell(sell: Omit<Sell, 'id' | 'soldAt'>): Promise<Sell> {
-  const supabase = getServerSupabase();
+export async function insertSell(
+  sell: Omit<Sell, 'id' | 'soldAt'>,
+  userId: string,
+  supabase: SupabaseClient = getServerSupabase(),
+): Promise<Sell> {
   const { data, error } = await supabase
     .from('sells')
     .insert({
@@ -67,6 +69,7 @@ export async function insertSell(sell: Omit<Sell, 'id' | 'soldAt'>): Promise<Sel
       sell_price: sell.sellPrice,
       buy_price_snapshot: sell.buyPriceSnapshot,
       notes: sell.notes,
+      user_id: userId,
     })
     .select()
     .single();

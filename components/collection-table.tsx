@@ -34,8 +34,8 @@ import { RARITY_LABELS } from '@/lib/types';
 
 interface CollectionTableProps {
   cards: Card[];
-  onEdit: (card: Card) => void;
-  onDelete: (id: string) => void;
+  onEdit?: (card: Card) => void;
+  onDelete?: (id: string) => void;
 }
 
 type SortKey = keyof Card | 'totalValue';
@@ -107,7 +107,7 @@ export function CollectionTable({ cards, onEdit, onDelete }: CollectionTableProp
 
   const confirmDelete = () => {
     if (deleteCardId) {
-      onDelete(deleteCardId);
+      onDelete?.(deleteCardId);
       setDeleteCardId(null);
     }
   };
@@ -237,29 +237,35 @@ export function CollectionTable({ cards, onEdit, onDelete }: CollectionTableProp
                     <span className="text-xs text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon-sm">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Actions</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEdit(card)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setDeleteCardId(card.id)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+                {(onEdit || onDelete) && (
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon-sm">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {onEdit && (
+                          <DropdownMenuItem onClick={() => onEdit(card)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                        )}
+                        {onDelete && (
+                          <DropdownMenuItem
+                            onClick={() => setDeleteCardId(card.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>

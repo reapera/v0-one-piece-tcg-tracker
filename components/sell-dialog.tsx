@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import {
   Dialog,
   DialogContent,
@@ -36,9 +37,13 @@ export function SellDialog({ card, open, onOpenChange, onSell }: SellDialogProps
     setError(null);
     setIsSubmitting(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/sells', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({ cardId: card.id, quantitySold: qty, sellPrice }),
       });
       const data = await res.json();
