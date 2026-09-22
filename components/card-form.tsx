@@ -87,6 +87,9 @@ export function CardForm({
   const [showCardDetails, setShowCardDetails] = useState(true);
   const [duplicateCard, setDuplicateCard] = useState<Card | null>(null);
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
+  const [showAddCopies, setShowAddCopies] = useState(false);
+  const [addCopiesQty, setAddCopiesQty] = useState(1);
+  const [addCopiesPrice, setAddCopiesPrice] = useState(0);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -121,6 +124,9 @@ export function CardForm({
     setShowCardDetails(true);
     setDuplicateCard(null);
     setIsCheckingDuplicate(false);
+    setShowAddCopies(false);
+    setAddCopiesQty(1);
+    setAddCopiesPrice(0);
   }, [editCard, open]);
 
   const uploadImageFile = async (file: File) => {
@@ -531,6 +537,78 @@ export function CardForm({
               </div>
             </Field>
           </div>
+
+          {/* ── Add Copies helper (edit mode only) ── */}
+          {editCard && (
+            <div className="rounded-lg border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowAddCopies((v) => !v)}
+                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium hover:bg-secondary/40 transition-colors"
+              >
+                <span>Add Copies &amp; Recalculate Avg Price</span>
+                <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${showAddCopies ? 'rotate-180' : ''}`} />
+              </button>
+              {showAddCopies && (() => {
+                const newQty = formData.quantity + addCopiesQty;
+                const newAvg = addCopiesQty > 0
+                  ? Math.round(((formData.buyPrice * formData.quantity + addCopiesPrice * addCopiesQty) / newQty) * 100) / 100
+                  : formData.buyPrice;
+                return (
+                  <div className="border-t border-border px-4 pb-4 pt-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field>
+                        <FieldLabel>Copies to add</FieldLabel>
+                        <div className="flex items-center rounded-md border border-input bg-background">
+                          <Button type="button" variant="ghost" size="icon"
+                            className="h-9 w-9 shrink-0 rounded-none rounded-l-md border-r border-input"
+                            onClick={() => setAddCopiesQty((q) => Math.max(1, q - 1))}
+                            disabled={addCopiesQty <= 1}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <Input type="number" min={1} value={addCopiesQty}
+                            onChange={(e) => setAddCopiesQty(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="h-9 rounded-none border-0 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          />
+                          <Button type="button" variant="ghost" size="icon"
+                            className="h-9 w-9 shrink-0 rounded-none rounded-r-md border-l border-input"
+                            onClick={() => setAddCopiesQty((q) => q + 1)}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </Field>
+                      <Field>
+                        <FieldLabel>Price per copy (Rp)</FieldLabel>
+                        <Input type="number" min={0} value={addCopiesPrice}
+                          onChange={(e) => setAddCopiesPrice(parseFloat(e.target.value) || 0)}
+                        />
+                      </Field>
+                    </div>
+                    <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs space-y-0.5">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">New total qty</span>
+                        <span className="font-medium">{newQty}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">New avg price</span>
+                        <span className="font-medium text-primary">Rp{newAvg.toLocaleString('id-ID')}</span>
+                      </div>
+                    </div>
+                    <Button type="button" size="sm" onClick={() => {
+                      setFormData((prev) => ({ ...prev, quantity: newQty, buyPrice: newAvg }));
+                      setShowAddCopies(false);
+                      setAddCopiesQty(1);
+                      setAddCopiesPrice(0);
+                    }}>
+                      Apply
+                    </Button>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
