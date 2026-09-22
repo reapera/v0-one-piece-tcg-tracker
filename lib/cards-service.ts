@@ -69,10 +69,11 @@ export async function bumpCardQuantity(
   existingQty: number,
   existingPrice: number,
   newPrice: number,
+  qtyToAdd: number = 1,
   supabase: SupabaseClient = getServerSupabase(),
 ): Promise<Card> {
-  const newQty = existingQty + 1;
-  const avgPrice = Math.round(((existingPrice * existingQty + newPrice) / newQty) * 100) / 100;
+  const newQty = existingQty + qtyToAdd;
+  const avgPrice = Math.round(((existingPrice * existingQty + newPrice * qtyToAdd) / newQty) * 100) / 100;
   return patchCard(id, { quantity: newQty, buyPrice: avgPrice }, supabase);
 }
 

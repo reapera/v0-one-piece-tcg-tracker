@@ -46,7 +46,10 @@ export function useCollection() {
     }
 
     const created: Card = await res.json();
-    setCards((prev) => [...prev, created]);
+    setCards((prev) => {
+      const exists = prev.some((c) => c.id === created.id);
+      return exists ? prev.map((c) => (c.id === created.id ? created : c)) : [...prev, created];
+    });
     return created;
   }, []);
 
